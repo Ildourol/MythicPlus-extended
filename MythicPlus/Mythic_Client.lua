@@ -1525,7 +1525,7 @@ function MythicHandlers.StartMythicTimerGUI(_, mapId, tier, duration, bossNames,
     local baseHeight = 140 + #bossNames * 18
     local frameHeight = (enemiesRequired > 0) and (baseHeight + 28) or baseHeight
 
-    local timerFrame = CreateFrame("Frame", "MythicBossTimerFrame", UIParent)
+    local timerFrame = CreateFrame("Frame", nil, UIParent)
     timerFrame:SetSize(320, frameHeight)
     timerFrame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -20, -120)
     timerFrame:SetMovable(true)
@@ -2107,6 +2107,7 @@ function MythicHandlers.ShowVaultGUI(_, item1, item2, item3, tier1, tier2, tier3
     end)
     VaultFrame:SetScript("OnHide", function(self)
         selectedIndex = nil
+        AIO.Handle("AIO_Mythic", "OnVaultClosed")
     end)
     VaultFrame:Show()
 end

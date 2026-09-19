@@ -90,17 +90,10 @@ local function LoadMythicConfig()
         end
     end
 
-    if not MythicConfig then
-        MythicConfig = {
-            Enable               = 1,
-            NoKeystoneRequired   = 0,
-            AllowKeyReattunement = 0,
-            HeroicBonusChance    = 1.25,
-            HeroicExtraEmblem    = 1,
-            HeroicGoldMultiplier = 1.5,
-            HeroicRatingMultiplier = 1.1,
-            AllowPlayerConfig    = 1,
-        }
+    if _G.MythicConfig and type(_G.MythicConfig) == "table" then
+        for k, v in pairs(_G.MythicConfig) do
+            MythicConfig[k] = v
+        end
     end
 
     REQUIRE_KEYSTONE = (MythicConfig.NoKeystoneRequired == 0)
@@ -142,11 +135,11 @@ local WEAPON_PROFICIENCY = {
     [176] = {[3] = true, [4] = true, [1] = true}, -- Thrown
     [172] = {[6] = true, [3] = true, [2] = true, [7] = true, [1] = true}, -- Two-Handed Axes
     [43] = {[6] = true, [3] = true, [8] = true, [2] = true, [4] = true, [9] = true, [1] = true}, -- Swords
-    [44] = {[6] = true, [3] = true, [2] = true, [7] = true, [1] = true}, -- Axes
+    [44] = {[6] = true, [3] = true, [2] = true, [4] = true, [7] = true, [1] = true}, -- Axes (Rogues gained in 3.2.0)
     [136] = {[11] = true, [3] = true, [8] = true, [5] = true, [7] = true, [9] = true, [1] = true}, -- Staves
     [160] = {[6] = true, [11] = true, [2] = true, [7] = true, [1] = true}, -- Two-Handed Maces
     [46] = {[3] = true, [4] = true, [1] = true}, -- Guns
-    [229] = {[6] = true, [3] = true, [2] = true, [1] = true}, -- Polearms
+    [229] = {[6] = true, [11] = true, [3] = true, [2] = true, [1] = true}, -- Polearms (Druids gained in 3.0.2)
     [473] = {[11] = true, [3] = true, [4] = true, [7] = true, [1] = true}, -- Fist Weapons
     [54] = {[6] = true, [11] = true, [2] = true, [5] = true, [4] = true, [7] = true, [1] = true}, -- Maces
     [226] = {[3] = true, [4] = true, [1] = true}, -- Crossbows
@@ -186,6 +179,12 @@ local BossNameCache = {
     ["zhTW"] = {}
 }
 
+local BOSS_ENTRY_ALIASES = {
+    [26798] = 26731, -- The Nexus: Commander Kolurg (Alliance) -> Commander Stoutbeard (Horde)
+    [35617] = 35451, -- Trial of the Champion: The Black Knight (Skeleton) -> The Black Knight
+    [35618] = 35451, -- Trial of the Champion: The Black Knight (Ghost) -> The Black Knight
+}
+
 local function LoadBossNames()
     local bossEntries = {}
     local entriesStr = ""
@@ -212,6 +211,16 @@ local function LoadBossNames()
                     entriesStr = entriesStr .. entry
                 end
             end
+        end
+    end
+
+    for aliasEntry, _ in pairs(BOSS_ENTRY_ALIASES) do
+        if not bossEntries[aliasEntry] then
+            bossEntries[aliasEntry] = true
+            if entriesStr ~= "" then
+                entriesStr = entriesStr .. ","
+            end
+            entriesStr = entriesStr .. aliasEntry
         end
     end
     
@@ -342,8 +351,8 @@ MythicBosses = {
         bosses = {4887, 4831, 4830, 4832, 4829}, final = 4829, timer = 2100, enemies = 45},
     [34] = { -- The Stockade (Bazil Thredd 1716 as final, removed rare Bruegal)
         bosses = {1666, 1717, 1663, 1665, 1716}, final = 1716, timer = 1200, enemies = 35},
-    [90] = { -- Gnomeregan
-        bosses = {7079, 6235, 6229, 6231, 7800}, final = 7800, timer = 2100, enemies = 50},
+    [90] = { -- Gnomeregan (removed rare Dark Iron Ambassador)
+        bosses = {7079, 6235, 6229, 7800}, final = 7800, timer = 2100, enemies = 50},
     [47] = { -- Razorfen Kraul
         bosses = {4424, 4428, 4420, 4421}, final = 4421, timer = 1800, enemies = 40},
     [129] = { -- Razorfen Downs (removed rare Glutton)
@@ -352,16 +361,16 @@ MythicBosses = {
         bosses = {4542, 3976, 3977}, final = 3977, timer = 1500, enemies = 30},
     [70] = { -- Uldaman (removed Alliance-friendly Baelog)
         bosses = {6910, 7228, 7023, 7206, 2748}, final = 2748, timer = 2100, enemies = 45},
-    [209] = { -- Zul'Farrak
-        bosses = {7271, 7272, 8127, 7274, 7275, 7267}, final = 7267, timer = 2100, enemies = 50},
+    [209] = { -- Zul'Farrak (removed summonable Gahz'rilla requiring Mallet)
+        bosses = {7271, 7272, 7274, 7275, 7267}, final = 7267, timer = 2100, enemies = 50},
     [349] = { -- Maraudon (Rotgrip 12208 instead of Hydrospawn)
         bosses = {12258, 12236, 12225, 12203, 12208, 12201}, final = 12201, timer = 2400, enemies = 50},
     [109] = { -- Temple of Atal'Hakkar (removed summonable Avatar of Hakkar)
         bosses = {5710, 5719, 5720, 5709}, final = 5709, timer = 2400, enemies = 50},
     [230] = { -- Blackrock Depths
         bosses = {9018, 9016, 9017, 9056, 9024, 9025, 9033, 8983, 9537, 9543, 9502, 9019}, final = 9019, timer = 3000, enemies = 70},
-    [229] = { -- Blackrock Spire
-        bosses = {9196, 9236, 9237, 9568, 9816, 10429, 10363}, final = 10363, timer = 3000, enemies = 65},
+    [229] = { -- Blackrock Spire (Highlord Omokk 9177 fixed from 9196)
+        bosses = {9177, 9236, 9237, 9568, 9816, 10429, 10363}, final = 10363, timer = 3000, enemies = 65},
     [429] = { -- Dire Maul - East
         bosses = {14327, 13280, 11490, 11492}, final = 11492, timer = 1800, enemies = 35},
     [289] = { -- Scholomance (removed summonable Kormok and Kirtonos)
@@ -370,8 +379,8 @@ MythicBosses = {
         bosses = {10811, 10813, 10436, 10437, 10438, 10435, 10439, 10440}, final = 10440, timer = 2700, enemies = 65},
 
     -- TBC Dungeons
-    [543] = { -- Hellfire Ramparts
-        bosses = {17306, 17537, 17307}, final = 17307, timer = 1500, enemies = 40},
+    [543] = { -- Hellfire Ramparts (Nazan 17536 included with Vazruden 17307)
+        bosses = {17306, 17537, 17307, 17536}, final = 17307, timer = 1500, enemies = 40},
     [542] = { -- The Blood Furnace
         bosses = {17381, 17380, 17377}, final = 17377, timer = 1500, enemies = 42},
     [540] = { -- The Shattered Halls (Blood Guard Porung is Heroic only)
@@ -514,7 +523,8 @@ local DUNGEON_LAST_BOSSES = {
     [27656] = 578, -- The Oculus: Ley-Guardian Eregos
     [26533] = 595, -- Culling of Stratholme: Mal'Ganis
     [35451] = 650, -- Trial of the Champion: The Black Knight
-    [35617] = 650, -- Trial of the Champion: The Black Knight (alternate)
+    [35617] = 650, -- Trial of the Champion: The Black Knight (Skeleton)
+    [35618] = 650, -- Trial of the Champion: The Black Knight (Ghost form)
     [36502] = 632, -- Forge of Souls: Devourer of Souls
     [36658] = 658, -- Pit of Saron: Scourgelord Tyrannus
     [36954] = 668, -- Halls of Reflection: Escape from Arthas
@@ -1082,11 +1092,23 @@ local function CanPlayerUseItem(player, itemId)
         return false
     end
     if itemData.class == 4 then
-        local playerArmorType = CLASS_ARMOR_TYPES[playerClass]
-        if playerArmorType and itemData.subClass > 0 then
-            if itemData.subClass > playerArmorType then
+        if itemData.subClass >= 1 and itemData.subClass <= 4 then
+            local playerArmorType = CLASS_ARMOR_TYPES[playerClass]
+            if playerArmorType and itemData.subClass > playerArmorType then
                 return false
             end
+        elseif itemData.subClass == 6 then -- Shield
+            if playerClass ~= 1 and playerClass ~= 2 and playerClass ~= 7 then
+                return false
+            end
+        elseif itemData.subClass == 7 then -- Libram
+            if playerClass ~= 2 then return false end
+        elseif itemData.subClass == 8 then -- Idol
+            if playerClass ~= 11 then return false end
+        elseif itemData.subClass == 9 then -- Totem
+            if playerClass ~= 7 then return false end
+        elseif itemData.subClass == 10 then -- Sigil
+            if playerClass ~= 6 then return false end
         end
     end
     if itemData.class == 2 then
@@ -1292,6 +1314,26 @@ local function UpdateVaultProgress(player, tier, wasSuccessful)
     end
 end
 
+local VaultProximityEvents = {}
+
+local function ClearVaultProximityEvent(playerGUID)
+    if VaultProximityEvents[playerGUID] then
+        RemoveEventById(VaultProximityEvents[playerGUID])
+        VaultProximityEvents[playerGUID] = nil
+    end
+end
+
+local function SafeAddItemOrMail(player, itemId, count, subject, body)
+    count = count or 1
+    local added = player:AddItem(itemId, count)
+    if not added then
+        local guidLow = player:GetGUIDLow()
+        SendMail(subject or "Mythic+ Reward", body or "Your inventory was full. Here is your item!", guidLow, 0, 41, 0, 0, 0, itemId, count)
+        return false
+    end
+    return true
+end
+
 function WeeklyVaultInteract(event, go, player)
     local guid = player:GetGUIDLow()
     if not PlayerVaultCache[guid] then
@@ -1324,18 +1366,22 @@ function WeeklyVaultInteract(event, go, player)
     AIO.Handle(player, "AIO_Mythic", "ShowVaultGUI", items[1], items[2], items[3], tiers[1] or 0, tiers[2] or 0, tiers[3] or 0, itemLevels[1], itemLevels[2], itemLevels[3])
     
     local playerGUID = player:GetGUID()
+    ClearVaultProximityEvent(playerGUID)
     local goX, goY, goZ = go:GetX(), go:GetY(), go:GetZ()
     local goMapId = go:GetMapId()
-    local proximityEventId = CreateLuaEvent(function()
+    local proximityEventId
+    proximityEventId = CreateLuaEvent(function(eventId, delay, repeats)
         local p = GetPlayerByGUID(playerGUID)
 
         if not p then
-            return false
+            ClearVaultProximityEvent(playerGUID)
+            return
         end
 
         if p:GetMapId() ~= goMapId then
             AIO.Handle(p, "AIO_Mythic", "CloseVaultGUI")
-            return false
+            ClearVaultProximityEvent(playerGUID)
+            return
         end
 
         local pX, pY, pZ = p:GetX(), p:GetY(), p:GetZ()
@@ -1343,11 +1389,11 @@ function WeeklyVaultInteract(event, go, player)
         
         if distance > 6 then
             AIO.Handle(p, "AIO_Mythic", "CloseVaultGUI")
-            return false
+            ClearVaultProximityEvent(playerGUID)
+            return
         end
-        
-        return true
     end, 1000, 0)
+    VaultProximityEvents[playerGUID] = proximityEventId
 end
 
 function MythicHandlers.SelectVaultItem(player, itemIndex)
@@ -1366,14 +1412,24 @@ function MythicHandlers.SelectVaultItem(player, itemIndex)
     end
     
     if itemId then
-        player:AddItem(itemId, 1)
-        cache.has_collected = true
-        SavePlayerVaultCache(guid)
-        
         local itemData = CacheItemTemplate(itemId)
         local itemName = itemData and itemData.name or "Unknown Item"
+        if not SafeAddItemOrMail(player, itemId, 1, "Mythic+ Great Vault", "Your inventory was full when collecting from the Great Vault. Here is your item!") then
+            player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "Inventory full! Item sent to mailbox:") .. " " .. itemName)
+        else
+            player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "Reward:") .. " " .. itemName)
+        end
+        cache.has_collected = true
+        SavePlayerVaultCache(guid)
+        ClearVaultProximityEvent(player:GetGUID())
         
         AIO.Handle(player, "AIO_Mythic", "UpdateVaultStatus", false)
+    end
+end
+
+function MythicHandlers.OnVaultClosed(player)
+    if player then
+        ClearVaultProximityEvent(player:GetGUID())
     end
 end
 
@@ -1407,7 +1463,7 @@ local function ProcessWeeklyVaultGeneration()
     if query then
         repeat
             local guid = query:GetUInt32(0)
-            local player = GetPlayerByGUID(guid)
+            local player = GetPlayerByGUID(GetPlayerGUID(guid))
             
             if player then
                 GenerateVaultItemsForPlayer(player)
@@ -1515,12 +1571,7 @@ local function GetAffixNameSet(tier)
     return table.concat(names, ", ")
 end
 
-local function LeaveDungeonMap(event, player)
-    local mapId = player:GetMapId()
-    if not mythicDungeonIds[mapId] then
-        AIO.Handle(player, "AIO_Mythic", "KillMythicTimerGUI")
-    end
-end
+
 
 local function GetRandomMythicMapId()
     local ids = {}
@@ -1622,8 +1673,71 @@ local function RecalculateTotalPoints(guid)
     SavePlayerRatingCache(guid)
 end
 
-local function ApplyAuraToNearbyCreatures(player, affixes, tier)
-    local seen = {}
+local function RestoreMythicTimerGUI(player)
+    if not player or not player:IsInWorld() then return end
+    local map = player:GetMap()
+    if not map then return end
+    local mapId = map:GetMapId()
+    local instanceId = map:GetInstanceId()
+    
+    if IsRunActive(instanceId) then
+        local runData = ActiveRunsCache[instanceId]
+        local bossTracker = MYTHIC_BOSS_KILL_TRACKER[instanceId]
+        local enemyTracker = MYTHIC_ENEMY_FORCES_TRACKER[instanceId]
+        local bossData = MythicBosses[mapId]
+        if runData and runData.start_time and bossData then
+            local now = os.time()
+            local elapsed = math.max(0, now - runData.start_time)
+            local totalTimer = bossData.timer or 900
+            local remainingTime = math.max(0, totalTimer - elapsed)
+            local tier = runData.tier
+            local deaths = runData.deaths or 0
+            local penalty = deaths * penaltyPerDeath
+            local potentialGain = CalculateMythicRating(tier, 100)
+            local enemiesReq = (bossData.enemies and bossData.enemies > 0) and bossData.enemies or 0
+            
+            AIO.Handle(player, "AIO_Mythic", "StartMythicTimerGUI", mapId, tier, remainingTime, GetLocalizedBossNames(player, mapId), potentialGain, enemiesReq)
+            AIO.Handle(player, "AIO_Mythic", "UpdateMythicScore", penalty, deaths)
+            
+            if bossTracker and bossTracker.indexMap then
+                local remainingSet = {}
+                for _, bEntry in ipairs(bossTracker.remaining or {}) do
+                    remainingSet[bEntry] = true
+                end
+                for bEntry, idx in pairs(bossTracker.indexMap) do
+                    if not remainingSet[bEntry] then
+                        AIO.Handle(player, "AIO_Mythic", "MarkBossKilled", mapId, idx)
+                    end
+                end
+            end
+            
+            if enemyTracker and enemiesReq > 0 then
+                local percentage = math.min((enemyTracker.current / enemyTracker.required) * 100, 100)
+                AIO.Handle(player, "AIO_Mythic", "UpdateEnemyForces", enemyTracker.current, enemyTracker.required, percentage, enemyTracker.completed)
+            end
+            
+            if runData.overtime_started then
+                AIO.Handle(player, "AIO_Mythic", "StartOvertimeMode")
+            end
+        end
+    end
+end
+
+local function LeaveDungeonMap(event, player)
+    local mapId = player:GetMapId()
+    if not mythicDungeonIds[mapId] then
+        AIO.Handle(player, "AIO_Mythic", "KillMythicTimerGUI")
+    else
+        CreateLuaEvent(function()
+            if player and player:IsInWorld() then
+                RestoreMythicTimerGUI(player)
+            end
+        end, 500, 1)
+    end
+end
+
+local function ApplyAuraToNearbyCreatures(player, affixes, tier, seen)
+    seen = seen or {}
     local map = player:GetMap()
     if not map then
         return
@@ -1651,6 +1765,7 @@ local function ApplyAuraToNearbyCreatures(player, affixes, tier)
             and not creature:IsPlayer()
             and creature:IsElite()
             and not shouldExclude
+            and creature:IsHostileTo(player)
             and faction ~= 2 and faction ~= 3 and faction ~= 4
             and faction ~= 31 and faction ~= 35 and faction ~= 188 and faction ~= 1629
             and faction ~= 114 and faction ~= 115 and faction ~= 1
@@ -1694,7 +1809,9 @@ local function DowngradeKeystoneOnFail(player, tier)
     CharDBQuery(string.format("REPLACE INTO character_mythic_keys (guid, mapId, tier) VALUES (%d, %d, %d)", guid, newMapId, newTier))
     
     if not player:HasItem(900100) then
-        player:AddItem(900100, 1)
+        if not SafeAddItemOrMail(player, 900100, 1, "Mythic+ Keystone", "Your inventory was full. Here is your downgraded Mythic Keystone!") then
+            player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "Inventory full! Keystone sent to mailbox."))
+        end
     end
     
     local dungeonName = GetLocalizedDungeonName(player, newMapId)
@@ -1703,8 +1820,9 @@ local function DowngradeKeystoneOnFail(player, tier)
         dungeonName
     ))
     
+    local playerGUID = player:GetGUID()
     CreateLuaEvent(function()
-        local p = GetPlayerByGUID(guid)
+        local p = GetPlayerByGUID(playerGUID)
         if p then
             MythicHandlers.RequestMapNameAndTier(p)
         end
@@ -1800,21 +1918,21 @@ end
 
 local function StartAuraLoop(player, instanceId, mapId, affixes, interval, tier)
     local guid = player:GetGUIDLow()
+    local playerGUID = player:GetGUID()
     if MYTHIC_LOOP_HANDLERS[instanceId] then
         RemoveEventById(MYTHIC_LOOP_HANDLERS[instanceId])
     end
     local eventId = CreateLuaEvent(function()
-        local p = GetPlayerByGUID(guid)
-        if not p then return end
         if not MYTHIC_FLAG_TABLE[instanceId] then return end
-        if p:GetMapId() ~= mapId then
-            if p:HasAura(8326) then
-                return
-            end
+
+        local playersInside = GetPlayersInInstance(mapId, instanceId)
+        if #playersInside == 0 then
+            -- All players left the instance; fail/abandon the run
             local runData = ActiveRunsCache[instanceId]
+            local p = GetPlayerByGUID(playerGUID)
             if runData and runData.run_id then
                 local now = os.time()
-                local duration = math.max(0, now - runData.start_time)
+                local duration = math.max(0, now - (runData.start_time or now))
                 CharDBQuery(string.format([[ 
                     UPDATE character_mythic_history 
                     SET completed = 2,
@@ -1822,19 +1940,21 @@ local function StartAuraLoop(player, instanceId, mapId, affixes, interval, tier)
                         duration = %d
                     WHERE run_id = %d
                 ]], now, duration, runData.run_id))
-                p:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(p, "UI", "You left the dungeon. The run is over."))
-                local validPlayer = GetPlayerByGUID(guid)
-                if validPlayer and validPlayer:IsInWorld() then
-                    SetEndOfRunUnitFlags(validPlayer)
+                if p then
+                    p:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(p, "UI", "You left the dungeon. The run is over."))
+                    DowngradeKeystoneOnFail(p, runData.tier)
                 end
-                DowngradeKeystoneOnFail(p, runData.tier)
             end
-            AIO.Handle(p, "AIO_Mythic", "KillMythicTimerGUI")
+            if p then
+                AIO.Handle(p, "AIO_Mythic", "KillMythicTimerGUI")
+            end
             MYTHIC_FLAG_TABLE[instanceId] = nil
             MYTHIC_AFFIXES_TABLE[instanceId] = nil
             MYTHIC_LOOP_HANDLERS[instanceId] = nil
             MYTHIC_REWARD_CHANCE_TABLE[instanceId] = nil
             ActiveRunsCache[instanceId] = nil
+            MYTHIC_BOSS_KILL_TRACKER[instanceId] = nil
+            MYTHIC_ENEMY_FORCES_TRACKER[instanceId] = nil
             if eventId ~= nil then
                 RemoveEventById(eventId)
             end
@@ -1846,18 +1966,14 @@ local function StartAuraLoop(player, instanceId, mapId, affixes, interval, tier)
             local runData = ActiveRunsCache[instanceId]
             if runData then
                 local now = os.time()
-                local elapsed = now - runData.start_time
+                local elapsed = now - (runData.start_time or now)
                 
                 if elapsed >= (bossData.timer or 900) then
-                    local runData = ActiveRunsCache[instanceId]
-                    if runData and not runData.overtime_started then
+                    if not runData.overtime_started then
                         runData.overtime_started = true
                         runData.overtime_start_time = now
                         
-                        local group = p:GetGroup()
-                        local members = group and group:GetMembers() or { p }
-                        
-                        for _, member in ipairs(members) do
+                        for _, member in ipairs(playersInside) do
                             if member:IsInWorld() and member:GetMapId() == mapId then
                                 AIO.Handle(member, "AIO_Mythic", "StartOvertimeMode")
                                 
@@ -1880,9 +1996,14 @@ local function StartAuraLoop(player, instanceId, mapId, affixes, interval, tier)
             end
         end
 
-        ApplyAuraToNearbyCreatures(p, affixes, tier)
-        if mapId == 668 then
-            CheckHallsOfReflectionProgress(nil, p)
+        local seen = {}
+        for _, pl in ipairs(playersInside) do
+            if pl:IsInWorld() and pl:IsAlive() then
+                ApplyAuraToNearbyCreatures(pl, affixes, tier, seen)
+            end
+        end
+        if mapId == 668 and #playersInside > 0 then
+            CheckHallsOfReflectionProgress(nil, playersInside[1])
         end
     end, interval, 0)
     MYTHIC_LOOP_HANDLERS[instanceId] = eventId
@@ -1954,6 +2075,7 @@ local function StartMythicRun(player, creature, tier)
     local diff = map and map:GetDifficulty() or 0
     ActiveRunsCache[instanceId] = {
         guid = guid,
+        playerGUID = player:GetGUID(),
         mapId = mapId,
         tier = tier,
         diff = diff,
@@ -2001,15 +2123,15 @@ local function StartMythicRun(player, creature, tier)
         end
     end
 
-    -- Full Dungeon Reset: Respawn existing creatures and reset doors
+    -- Full Dungeon Reset: Respawn existing creatures cleanly and reset doors
     local currentCreatures = map:GetCreatures()
-    local spawnedGuids = {}
+    local presentBossEntries = {}
     if currentCreatures then
-        for spawnId, c in pairs(currentCreatures) do
+        for _, c in ipairs(currentCreatures) do
             if c and not c:IsPlayer() then
                 local entry = c:GetEntry()
                 if entry ~= 900001 then -- Do not respawn/reset Font of Power
-                    spawnedGuids[spawnId] = true
+                    presentBossEntries[entry] = true
                     c:Respawn()
                     c:SetCorpseDelay(86400)
                 end
@@ -2017,23 +2139,24 @@ local function StartMythicRun(player, creature, tier)
         end
     end
 
-    -- Respawn any despawned / removed creatures directly from DB so bosses & trash are never missing
-    local q = WorldDBQuery(string.format("SELECT guid, id, position_x, position_y, position_z, orientation FROM creature WHERE map = %d", mapId))
-    if q then
-        repeat
-            local dbGuid = q:GetUInt32(0)
-            local entry = q:GetUInt32(1)
-            if entry ~= 900001 and not spawnedGuids[dbGuid] then
-                local x = q:GetFloat(2)
-                local y = q:GetFloat(3)
-                local z = q:GetFloat(4)
-                local o = q:GetFloat(5)
-                local spawned = PerformIngameSpawn(1, entry, mapId, instanceId, x, y, z, o, false, 0, 1)
-                if spawned then
-                    spawned:SetCorpseDelay(86400)
+    -- Safety check: only restore missing required bosses if they were completely despawned from instance memory
+    local bossData = MythicBosses[mapId]
+    if bossData and bossData.bosses then
+        for _, bossEntry in ipairs(bossData.bosses) do
+            if not presentBossEntries[bossEntry] then
+                local q = WorldDBQuery(string.format("SELECT position_x, position_y, position_z, orientation FROM creature WHERE map = %d AND id = %d LIMIT 1", mapId, bossEntry))
+                if q then
+                    local x = q:GetFloat(0)
+                    local y = q:GetFloat(1)
+                    local z = q:GetFloat(2)
+                    local o = q:GetFloat(3)
+                    local spawned = PerformIngameSpawn(1, bossEntry, mapId, instanceId, x, y, z, o, false, 0, 1)
+                    if spawned then
+                        spawned:SetCorpseDelay(86400)
+                    end
                 end
             end
-        until not q:NextRow()
+        end
     end
 
     -- Reset instance doors, gates, and despawn leftover reward chests
@@ -2361,7 +2484,8 @@ local function HandleDungeonEndbossReward(creature, killer)
     if MYTHIC_FLAG_TABLE[instanceId] or ActiveRunsCache[instanceId] then return end
 
     local entry = creature:GetEntry()
-    local targetMapId = DUNGEON_LAST_BOSSES[entry]
+    local targetEntry = BOSS_ENTRY_ALIASES[entry] or entry
+    local targetMapId = DUNGEON_LAST_BOSSES[entry] or DUNGEON_LAST_BOSSES[targetEntry]
 
     -- STRICT REQUIREMENT: Only the true LAST boss of this dungeon/wing awards the level 1 Mythic Keystone!
     if not targetMapId or targetMapId ~= mapId then
@@ -2407,6 +2531,7 @@ local function ProcessBossDeath(creature, killer)
     local mapId = map:GetMapId()
     local instanceId = map:GetInstanceId()
     local entry = creature:GetEntry()
+    local targetEntry = BOSS_ENTRY_ALIASES[entry] or entry
 
     local player = nil
     if killer then
@@ -2420,6 +2545,13 @@ local function ProcessBossDeath(creature, killer)
     if IsRunActive(instanceId) then
         local tracker = MYTHIC_BOSS_KILL_TRACKER[instanceId]
         if tracker and tracker.remaining then
+            if not tracker.killedBossGuids then tracker.killedBossGuids = {} end
+            local bGuid = creature:GetGUIDLow()
+            if tracker.killedBossGuids[bGuid] then
+                return
+            end
+            tracker.killedBossGuids[bGuid] = true
+
             local NO_CORPSE_REMOVE_IDS = {
                 [26692] = true, -- 'Ymirjar Harpooner' in Utgarde Pinnacle // would not spawn harpoons otherwise
                 [28585] = true, -- 'Slag' in Halls of Lightning // respawn would be too fast
@@ -2429,9 +2561,9 @@ local function ProcessBossDeath(creature, killer)
             creature:SetCorpseDelay(86400)
 
             for i, bossEntry in ipairs(tracker.remaining) do
-                if bossEntry == entry then
+                if bossEntry == entry or bossEntry == targetEntry then
                     table.remove(tracker.remaining, i)
-                    local bossIndex = tracker.indexMap and tracker.indexMap[entry] or 1
+                    local bossIndex = tracker.indexMap and (tracker.indexMap[entry] or tracker.indexMap[targetEntry]) or 1
                     local members = {}
                     if player and player:IsInWorld() and player:GetMapId() == mapId then
                         local group = player:GetGroup()
@@ -2463,7 +2595,10 @@ end
 
 if MYTHIC_ENEMY_FORCES_TRACKER == nil then MYTHIC_ENEMY_FORCES_TRACKER = {} end
 local function MythicEnemyKillCheck(event, player, killed)
-    local map = player:GetMap()
+    if not killed then return end
+    local p = player
+    if not p then return end
+    local map = p:GetMap()
     if not map then return end
     local mapId = map:GetMapId()
     local instanceId = map:GetInstanceId()
@@ -2474,10 +2609,27 @@ local function MythicEnemyKillCheck(event, player, killed)
     if not bossData.enemies or bossData.enemies == 0 then
         return
     end
-    for _, bossEntry in ipairs(bossData.bosses) do
-        if bossEntry == entry then
-            return
+
+    if bossData.bosses then
+        for _, bossEntry in ipairs(bossData.bosses) do
+            if bossEntry == entry then
+                return
+            end
         end
+    end
+    if bossData.heroicBosses then
+        for _, bossEntry in ipairs(bossData.heroicBosses) do
+            if bossEntry == entry then
+                return
+            end
+        end
+    end
+    if DUNGEON_LAST_BOSSES[entry] then
+        return
+    end
+
+    if not killed:IsHostileTo(p) then
+        return
     end
 
     local faction = killed:GetFaction()
@@ -2490,19 +2642,30 @@ local function MythicEnemyKillCheck(event, player, killed)
         MYTHIC_ENEMY_FORCES_TRACKER[instanceId] = {
             current = 0,
             required = bossData.enemies or 50,
-            completed = false
+            completed = false,
+            killedGuids = {}
         }
     end
 
     local tracker = MYTHIC_ENEMY_FORCES_TRACKER[instanceId]
+    if not tracker.killedGuids then tracker.killedGuids = {} end
+    local kGuid = killed:GetGUIDLow()
+    if tracker.killedGuids[kGuid] then
+        return
+    end
+    tracker.killedGuids[kGuid] = true
+
     tracker.current = tracker.current + 1
     local percentage = math.min((tracker.current / tracker.required) * 100, 100)
     if tracker.current >= tracker.required and not tracker.completed then
         tracker.completed = true
     end
 
-    local group = player:GetGroup()
-    local members = group and group:GetMembers() or { player }
+    local members = GetPlayersInInstance(mapId, instanceId)
+    if #members == 0 then
+        local group = p:GetGroup()
+        members = group and group:GetMembers() or { p }
+    end
     for _, member in ipairs(members) do
         if member:IsInWorld() and member:GetMapId() == mapId then
             AIO.Handle(member, "AIO_Mythic", "UpdateEnemyForces", tracker.current, tracker.required, percentage, tracker.completed)
@@ -2525,7 +2688,7 @@ function CheckRunCompletion(instanceId, mapId)
         local runData = ActiveRunsCache[instanceId]
         if not runData then return end
         
-        local player = GetPlayerByGUID(runData.guid)
+        local player = GetPlayerByGUID(runData.playerGUID or GetPlayerGUID(runData.guid))
         local members = {}
         if player and player:IsInWorld() and player:GetMapId() == mapId then
             local group = player:GetGroup()
@@ -2644,6 +2807,7 @@ local function MythicPlayerDeath(event, killer, killed)
         MYTHIC_AFFIXES_TABLE[instanceId] = nil
         MYTHIC_REWARD_CHANCE_TABLE[instanceId] = nil
         ActiveRunsCache[instanceId] = nil
+        MYTHIC_BOSS_KILL_TRACKER[instanceId] = nil
         MYTHIC_ENEMY_FORCES_TRACKER[instanceId] = nil
         if MYTHIC_LOOP_HANDLERS[instanceId] then
             RemoveEventById(MYTHIC_LOOP_HANDLERS[instanceId])
@@ -2680,15 +2844,18 @@ GiveStartingKeystone = function(player, targetMapId)
     CharDBQuery(string.format("REPLACE INTO character_mythic_keys (guid, mapId, tier) VALUES (%d, %d, %d)", guid, newMapId, newTier))
 
     if not player:HasItem(900100) then
-        player:AddItem(900100, 1)
+        if not SafeAddItemOrMail(player, 900100, 1, "Mythic+ Keystone", "Your inventory was full. Here is your Mythic Keystone!") then
+            player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "Inventory full! Keystone sent to mailbox."))
+        end
     end
 
     local dungeonName = GetLocalizedDungeonName(player, newMapId)
     player:SendBroadcastMessage(string.format("[Mythic+] %s (%s - Mythic +%d)", 
         GetLocalizedText(player, "UI", "You received a Mythic Keystone!"), dungeonName, newTier))
 
+    local playerGUID = player:GetGUID()
     CreateLuaEvent(function()
-        local p = GetPlayerByGUID(guid)
+        local p = GetPlayerByGUID(playerGUID)
         if p then
             MythicHandlers.RequestMapNameAndTier(p)
         end
@@ -2698,45 +2865,52 @@ GiveStartingKeystone = function(player, targetMapId)
 end
 
 local function CheckMalGanisEvade(event, creature)
-    if creature:GetEntry() ~= 26533 then return end
+    if not creature or creature:GetEntry() ~= 26533 then return end
     local map = creature:GetMap()
     if not map or map:GetMapId() ~= 595 then return end
     local instanceId = map:GetInstanceId()
-    if creature:IsInEvadeMode() then
-        local players = creature:GetPlayersInRange(100)
-        if IsRunActive(instanceId) then
-            for _, player in ipairs(players) do
-                if player:IsInWorld() and player:GetMapId() == 595 then
-                    player:KilledMonsterCredit(26533)
-                    local group = player:GetGroup()
-                    local members = group and group:GetMembers() or { player }
-                    local tracker = MYTHIC_BOSS_KILL_TRACKER[instanceId]
-                    if tracker then
-                        for i, bossEntry in ipairs(tracker.remaining) do
-                            if bossEntry == 26533 then
-                                table.remove(tracker.remaining, i)
-                                local bossIndex = tracker.indexMap and tracker.indexMap[26533] or 4
-                                for _, member in ipairs(members) do
-                                    if member:IsInWorld() and member:GetMapId() == 595 then
-                                        AIO.Handle(member, "AIO_Mythic", "MarkBossKilled", 595, bossIndex)
-                                    end
-                                end
-                                break
-                            end
-                        end
-                        if #tracker.remaining == 0 then
-                            CheckRunCompletion(instanceId, 595)
+
+    local isDefeated = creature:IsInEvadeMode() or (creature:GetHealthPct() <= 1.5) or (not creature:IsAlive())
+    if not isDefeated then return end
+
+    if IsRunActive(instanceId) then
+        local tracker = MYTHIC_BOSS_KILL_TRACKER[instanceId]
+        if tracker and tracker.remaining then
+            if not tracker.killedBossGuids then tracker.killedBossGuids = {} end
+            local bGuid = creature:GetGUIDLow()
+            if tracker.killedBossGuids[bGuid] then
+                return
+            end
+            tracker.killedBossGuids[bGuid] = true
+
+            for i, bossEntry in ipairs(tracker.remaining) do
+                if bossEntry == 26533 then
+                    table.remove(tracker.remaining, i)
+                    local bossIndex = tracker.indexMap and tracker.indexMap[26533] or 4
+                    local members = GetPlayersInInstance(595, instanceId)
+                    for _, member in ipairs(members) do
+                        if member:IsInWorld() and member:GetMapId() == 595 then
+                            member:KilledMonsterCredit(26533)
+                            AIO.Handle(member, "AIO_Mythic", "MarkBossKilled", 595, bossIndex)
                         end
                     end
+                    if #tracker.remaining == 0 then
+                        CheckRunCompletion(instanceId, 595)
+                    end
+                    break
                 end
             end
-        else
-            if not InstanceKeyRewardedCache[instanceId] then
-                InstanceKeyRewardedCache[instanceId] = true
-                for _, player in ipairs(players) do
-                    if player:IsInWorld() and player:GetMapId() == 595 then
-                        GiveStartingKeystone(player, 595)
-                    end
+        end
+    else
+        if not InstanceKeyRewardedCache[instanceId] then
+            InstanceKeyRewardedCache[instanceId] = true
+            local players = creature:GetPlayersInRange(100)
+            if #players == 0 then
+                players = GetPlayersInInstance(595, instanceId)
+            end
+            for _, player in ipairs(players) do
+                if player:IsInWorld() and player:GetMapId() == 595 then
+                    GiveStartingKeystone(player, 595)
                 end
             end
         end
@@ -2870,10 +3044,14 @@ local function TryRewardMythicLoot(player, tier, upgradeLevel, diff)
 
     local function DeliverReward(reward)
         if reward.type == "gear" or reward.type == "pet" or reward.type == "mount" or reward.type == "item" then
-            player:AddItem(reward.itemid, reward.amount or 1)
+            local count = reward.amount or 1
             local itemData = CacheItemTemplate(reward.itemid)
             local itemName = itemData and itemData.name or reward.itemname or "Item #" .. tostring(reward.itemid)
-            player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "Reward:") .. " " .. itemName)
+            if not SafeAddItemOrMail(player, reward.itemid, count, "Mythic+ Reward", "Your inventory was full. Here is your reward!") then
+                player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "Inventory full! Reward sent to mailbox:") .. " " .. itemName)
+            else
+                player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "Reward:") .. " " .. itemName)
+            end
         elseif reward.type == "spell" then
             player:LearnSpell(reward.itemid)
             player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "Reward: Spell learned!"))
@@ -2881,7 +3059,8 @@ local function TryRewardMythicLoot(player, tier, upgradeLevel, diff)
 
         if reward.additionalID and reward.additionalType then
             if reward.additionalType == "item" then
-                player:AddItem(reward.additionalID, 1)
+                local addCount = reward.additionalAmount or 1
+                SafeAddItemOrMail(player, reward.additionalID, addCount, "Mythic+ Bonus Reward", "Your inventory was full. Here is your bonus reward!")
             elseif reward.additionalType == "spell" then
                 player:LearnSpell(reward.additionalID)
             elseif reward.additionalType == "skill" then
@@ -2947,10 +3126,13 @@ local function TryRewardMythicLoot(player, tier, upgradeLevel, diff)
             emblemAmount = emblemAmount + (MythicConfig.HeroicExtraEmblem or 1)
         end
 
-        player:AddItem(emblemId, emblemAmount)
         local itemData = CacheItemTemplate(emblemId)
         local emblemName = itemData and itemData.name or "Emblem"
-        player:SendBroadcastMessage(string.format("[Mythic+] %s %dx %s", GetLocalizedText(player, "UI", "Reward:"), emblemAmount, emblemName))
+        if not SafeAddItemOrMail(player, emblemId, emblemAmount, "Mythic+ Emblems", "Your inventory was full. Here are your emblems!") then
+            player:SendBroadcastMessage(string.format("[Mythic+] %s %dx %s (%s)", GetLocalizedText(player, "UI", "Reward:"), emblemAmount, emblemName, GetLocalizedText(player, "UI", "Sent to mailbox")))
+        else
+            player:SendBroadcastMessage(string.format("[Mythic+] %s %dx %s", GetLocalizedText(player, "UI", "Reward:"), emblemAmount, emblemName))
+        end
 
         -- Gold reward scaling with tier
         local goldAmount = (tier * 100000) -- 10g per tier in copper
@@ -2999,7 +3181,6 @@ function AwardMythicPoints(player, tier, duration, deaths, remainingTime, diff)
 
     cache[mapId] = newRating
     cache.completed_runs = cache.completed_runs + 1
-    cache.total_runs = cache.total_runs + 1
 
     SavePlayerRatingCache(guid)
     RecalculateTotalPoints(guid)
@@ -3033,7 +3214,9 @@ function AwardMythicPoints(player, tier, duration, deaths, remainingTime, diff)
         CharDBQuery(string.format("REPLACE INTO character_mythic_keys (guid, mapId, tier) VALUES (%d, %d, %d)", guid, newMapId, newTier))
         
         if not player:HasItem(900100) then
-            player:AddItem(900100, 1)
+            if not SafeAddItemOrMail(player, 900100, 1, "Mythic+ Keystone", "Your inventory was full. Here is your upgraded Mythic Keystone!") then
+                player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "Inventory full! Keystone sent to mailbox."))
+            end
         end
 
         local newDungeonName = GetLocalizedDungeonName(player, newMapId)
@@ -3042,8 +3225,9 @@ function AwardMythicPoints(player, tier, duration, deaths, remainingTime, diff)
             newDungeonName
         ))
 
+        local playerGUID = player:GetGUID()
         CreateLuaEvent(function()
-            local p = GetPlayerByGUID(guid)
+            local p = GetPlayerByGUID(playerGUID)
             if p then
                 MythicHandlers.RequestMapNameAndTier(p)
             end
@@ -3091,8 +3275,9 @@ function BindKeystoneToDungeon(event, player, item, count)
             CharDBQuery(string.format("REPLACE INTO character_mythic_keys (guid, mapId, tier) VALUES (%d, %d, %d)", guid, newMapId, newTier))
         end
         
+        local playerGUID = player:GetGUID()
         CreateLuaEvent(function()
-            local p = GetPlayerByGUID(guid)
+            local p = GetPlayerByGUID(playerGUID)
             if p then
                 MythicHandlers.RequestMapNameAndTier(p)
             end
@@ -3122,10 +3307,12 @@ local function OnPlayerLogin(event, player)
     LoadPlayerCache(guid)
     LoadPlayerVaultCache(guid)
     PlayerNamesCache[guid] = player:GetName()
+    local playerGUID = player:GetGUID()
     CreateLuaEvent(function()
-        local p = GetPlayerByGUID(guid)
+        local p = GetPlayerByGUID(playerGUID)
         if p then
             MythicHandlers.RequestVaultStatus(p)
+            RestoreMythicTimerGUI(p)
         end
     end, 2000, 1)
 end
@@ -3158,14 +3345,17 @@ local function HandleKeystoneChatCommand(event, player, msg, Type, lang)
             end
             local tier = keyData and keyData.tier or 1
             if not player:HasItem(900100) then
-                player:AddItem(900100, 1)
+                if not SafeAddItemOrMail(player, 900100, 1, "Mythic+ Keystone", "Your inventory was full. Here is your attuned Mythic Keystone!") then
+                    player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "Inventory full! Keystone sent to mailbox."))
+                end
             end
             PlayerKeysCache[guid] = {mapId = currentMapId, tier = tier}
             CharDBQuery(string.format("REPLACE INTO character_mythic_keys (guid, mapId, tier) VALUES (%d, %d, %d)", guid, currentMapId, tier))
             local dungeonName = GetLocalizedDungeonName(player, currentMapId)
             player:SendBroadcastMessage(string.format("[Mythic+] Keystone attuned to: |cffffd100%s (Tier %d)|r!", dungeonName, tier))
+            local playerGUID = player:GetGUID()
             CreateLuaEvent(function()
-                local p = GetPlayerByGUID(guid)
+                local p = GetPlayerByGUID(playerGUID)
                 if p then MythicHandlers.RequestMapNameAndTier(p) end
             end, 100, 1)
             return false
@@ -3180,14 +3370,17 @@ local function HandleKeystoneChatCommand(event, player, msg, Type, lang)
                 return false
             end
             if not player:HasItem(900100) then
-                player:AddItem(900100, 1)
+                if not SafeAddItemOrMail(player, 900100, 1, "Mythic+ Keystone", "Your inventory was full. Here is your configured Mythic Keystone!") then
+                    player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "Inventory full! Keystone sent to mailbox."))
+                end
             end
             PlayerKeysCache[guid] = {mapId = currentMapId, tier = newTier}
             CharDBQuery(string.format("REPLACE INTO character_mythic_keys (guid, mapId, tier) VALUES (%d, %d, %d)", guid, currentMapId, newTier))
             local dungeonName = GetLocalizedDungeonName(player, currentMapId)
             player:SendBroadcastMessage(string.format("[Mythic+] Keystone set to: |cffffd100%s (Tier %d)|r!", dungeonName, newTier))
+            local playerGUID = player:GetGUID()
             CreateLuaEvent(function()
-                local p = GetPlayerByGUID(guid)
+                local p = GetPlayerByGUID(playerGUID)
                 if p then MythicHandlers.RequestMapNameAndTier(p) end
             end, 100, 1)
             return false
@@ -3209,7 +3402,6 @@ end
 RegisterCreatureGossipEvent(PEDESTAL_NPC_ENTRY, 1, Pedestal_OnGossipHello)
 RegisterCreatureGossipEvent(PEDESTAL_NPC_ENTRY, 2, Pedestal_OnGossipSelect)
 RegisterPlayerEvent(7, MythicBossKillCheck)
-RegisterPlayerEvent(7, DungeonEndbossKeyReward)
 RegisterPlayerEvent(7, MythicEnemyKillCheck)
 RegisterPlayerEvent(8, MythicPlayerDeath)
 RegisterPlayerEvent(18, HandleKeystoneChatCommand)
@@ -3219,6 +3411,9 @@ RegisterPlayerEvent(28, LeaveDungeonMap)
 RegisterPlayerEvent(3, OnPlayerLogin)
 RegisterPlayerEvent(4, OnPlayerLogout)
 RegisterCreatureEvent(26533, 1, CheckMalGanisEvade)
+RegisterCreatureEvent(26533, 2, CheckMalGanisEvade)
+RegisterCreatureEvent(26533, 9, CheckMalGanisEvade)
+RegisterCreatureEvent(26533, 4, CheckMalGanisEvade)
 
 local function RegisterAllBossDeathEvents()
     local registered = {}
@@ -3245,6 +3440,14 @@ local function RegisterAllBossDeathEvents()
         end
     end
     for entry, _ in pairs(DUNGEON_LAST_BOSSES) do
+        if not registered[entry] then
+            registered[entry] = true
+            RegisterCreatureEvent(entry, 4, function(event, creature, killer)
+                ProcessBossDeath(creature, killer)
+            end)
+        end
+    end
+    for entry, _ in pairs(BOSS_ENTRY_ALIASES) do
         if not registered[entry] then
             registered[entry] = true
             RegisterCreatureEvent(entry, 4, function(event, creature, killer)
