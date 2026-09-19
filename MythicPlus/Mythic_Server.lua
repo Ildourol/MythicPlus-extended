@@ -90,50 +90,6 @@ local function LoadMythicConfig()
         end
     end
 
-    -- 2. Fallback to candidate .conf paths if MythicConfig not defined or partially defined
-    local candidatePaths = {
-        "MythicPlus.conf",
-        "conf/MythicPlus.conf",
-        "lua_scripts/MythicPlus/MythicPlus.conf",
-        "lua_scripts/MythicPlus/conf/MythicPlus.conf",
-        "../etc/MythicPlus.conf",
-        "MythicPlus.conf.dist",
-        "conf/MythicPlus.conf.dist",
-        "lua_scripts/MythicPlus/MythicPlus.conf.dist",
-    }
-    for _, path in ipairs(candidatePaths) do
-        local f = io.open(path, "r")
-        if f then
-            for line in f:lines() do
-                line = line:match("^%s*(.-)%s*$")
-                if line ~= "" and not line:match("^#") and not line:match("^%[") then
-                    local key, val = line:match("^([%w%.%_]+)%s*=%s*(.+)$")
-                    if key and val then
-                        val = val:match("^%s*(.-)%s*$")
-                        if key == "MythicPlus.Enable" and not MythicConfig.Enable then
-                            MythicConfig.Enable = tonumber(val) or 1
-                        elseif key == "MythicPlus.NoKeystoneRequired" and not MythicConfig.NoKeystoneRequired then
-                            MythicConfig.NoKeystoneRequired = tonumber(val) or 0
-                        elseif key == "MythicPlus.AllowKeyReattunement" and not MythicConfig.AllowKeyReattunement then
-                            MythicConfig.AllowKeyReattunement = tonumber(val) or 0
-                        elseif key == "MythicPlus.HeroicBonusChance" and not MythicConfig.HeroicBonusChance then
-                            MythicConfig.HeroicBonusChance = tonumber(val) or 1.25
-                        elseif key == "MythicPlus.HeroicExtraEmblem" and not MythicConfig.HeroicExtraEmblem then
-                            MythicConfig.HeroicExtraEmblem = tonumber(val) or 1
-                        elseif key == "MythicPlus.HeroicGoldMultiplier" and not MythicConfig.HeroicGoldMultiplier then
-                            MythicConfig.HeroicGoldMultiplier = tonumber(val) or 1.5
-                        elseif key == "MythicPlus.HeroicRatingMultiplier" and not MythicConfig.HeroicRatingMultiplier then
-                            MythicConfig.HeroicRatingMultiplier = tonumber(val) or 1.1
-                        end
-                    end
-                end
-            end
-            f:close()
-            print("[Mythic+] Fallback configuration parsed from: " .. path)
-            break
-        end
-    end
-
     if not MythicConfig then
         MythicConfig = {
             Enable               = 1,
