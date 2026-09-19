@@ -1140,6 +1140,8 @@ local function GetCurrentVaultWeek()
     return os.date("%Y-%m-%d", os.time(t))
 end
 
+local PlayerClaimableVaultCache = {}
+
 function LoadPlayerVaultCache(guid)
     local currentWeek = GetCurrentVaultWeek()
     local query = CharDBQuery(string.format([[
@@ -1148,22 +1150,10 @@ function LoadPlayerVaultCache(guid)
         FROM character_mythic_vault 
         WHERE guid = %d AND week_start = '%s'
     ]], guid, currentWeek))
-    
-    if not query or (query and query:GetUInt32(9) == 0) then
-        query = CharDBQuery(string.format([[
-            SELECT highest_tier_1, highest_tier_2, highest_tier_3, successful_runs, 
-                   item_1_id, item_2_id, item_3_id, items_generated, has_collected, can_collect, week_start
-            FROM character_mythic_vault 
-            WHERE guid = %d AND can_collect = 1 AND has_collected = 0
-            ORDER BY week_start DESC
-            LIMIT 1
-        ]], guid))
-    end
 
     if query then
-        local weekStart = query:GetString(10) or currentWeek
         PlayerVaultCache[guid] = {
-            week_start = weekStart,
+            week_start = currentWeek,
             highest_tier_1 = query:IsNull(0) and nil or query:GetUInt32(0),
             highest_tier_2 = query:IsNull(1) and nil or query:GetUInt32(1),
             highest_tier_3 = query:IsNull(2) and nil or query:GetUInt32(2),
@@ -1190,6 +1180,56 @@ function LoadPlayerVaultCache(guid)
             can_collect = false
         }
     end
+end
+
+local function GetPlayerClaimableVault(guid)
+    local cached = PlayerClaimableVaultCache[guid]
+    if cached and cached.can_collect and not cached.has_collected then
+        return cached
+    end
+
+    local query = CharDBQuery(string.format([[
+        SELECT highest_tier_1, highest_tier_2, highest_tier_3, successful_runs, 
+               item_1_id, item_2_id, item_3_id, items_generated, has_collected, can_collect, week_start
+        FROM character_mythic_vault 
+        WHERE guid = %d AND can_collect = 1 AND has_collected = 0
+        ORDER BY week_start DESC
+        LIMIT 1
+    ]], guid))
+
+    if query then
+        local claimable = {
+            week_start = query:GetString(10),
+            highest_tier_1 = query:IsNull(0) and nil or query:GetUInt32(0),
+            highest_tier_2 = query:IsNull(1) and nil or query:GetUInt32(1),
+            highest_tier_3 = query:IsNull(2) and nil or query:GetUInt32(2),
+            successful_runs = query:GetUInt32(3),
+            item_1_id = query:IsNull(4) and nil or query:GetUInt32(4),
+            item_2_id = query:IsNull(5) and nil or query:GetUInt32(5),
+            item_3_id = query:IsNull(6) and nil or query:GetUInt32(6),
+            items_generated = query:GetUInt32(7) == 1,
+            has_collected = query:GetUInt32(8) == 1,
+            can_collect = query:GetUInt32(9) == 1
+        }
+        PlayerClaimableVaultCache[guid] = claimable
+        return claimable
+    end
+
+    PlayerClaimableVaultCache[guid] = nil
+    return nil
+end
+
+local function SaveClaimableVault(guid, claimable)
+    if not claimable then return end
+    CharDBQuery(string.format([[
+        UPDATE character_mythic_vault 
+        SET item_1_id = %s, item_2_id = %s, item_3_id = %s,
+            items_generated = %d, has_collected = %d, can_collect = %d
+        WHERE guid = %d AND week_start = '%s'
+    ]],
+    claimable.item_1_id or "NULL", claimable.item_2_id or "NULL", claimable.item_3_id or "NULL",
+    claimable.items_generated and 1 or 0, claimable.has_collected and 1 or 0, claimable.can_collect and 1 or 0,
+    guid, claimable.week_start))
 end
 
 function SavePlayerVaultCache(guid)
@@ -1232,9 +1272,9 @@ local function GetEligibleVaultLoot(player, tier, faction)
     return eligible
 end
 
-function GenerateVaultItemsForPlayer(player)
+function GenerateVaultItemsForPlayer(player, targetVault)
     local guid = player:GetGUIDLow()
-    local cache = PlayerVaultCache[guid]
+    local cache = targetVault or PlayerVaultCache[guid]
     
     if not cache or cache.items_generated or cache.successful_runs == 0 then
         return
@@ -1289,7 +1329,11 @@ function GenerateVaultItemsForPlayer(player)
     end
     cache.items_generated = true
     cache.can_collect = (cache.item_1_id or cache.item_2_id or cache.item_3_id) and true or false
-    SavePlayerVaultCache(guid)
+    if targetVault then
+        SaveClaimableVault(guid, cache)
+    else
+        SavePlayerVaultCache(guid)
+    end
 end
 
 local function UpdateVaultProgress(player, tier, wasSuccessful)
@@ -1336,23 +1380,19 @@ end
 
 function WeeklyVaultInteract(event, go, player)
     local guid = player:GetGUIDLow()
-    if not PlayerVaultCache[guid] then
-        LoadPlayerVaultCache(guid)
-    end
+    local claimable = GetPlayerClaimableVault(guid)
     
-    local cache = PlayerVaultCache[guid]
-    
-    if not cache.can_collect or cache.has_collected then
+    if not claimable or not claimable.can_collect or claimable.has_collected then
         player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "No loot available in your vault this week."))
         return
     end
 
-    if not cache.items_generated then
-        GenerateVaultItemsForPlayer(player)
+    if not claimable.items_generated then
+        GenerateVaultItemsForPlayer(player, claimable)
     end
     
-    local tiers = {cache.highest_tier_1, cache.highest_tier_2, cache.highest_tier_3}
-    local items = {cache.item_1_id or 0, cache.item_2_id or 0, cache.item_3_id or 0}
+    local tiers = {claimable.highest_tier_1, claimable.highest_tier_2, claimable.highest_tier_3}
+    local items = {claimable.item_1_id or 0, claimable.item_2_id or 0, claimable.item_3_id or 0}
     
     local itemLevels = {0, 0, 0}
     for i, itemId in ipairs(items) do
@@ -1398,17 +1438,17 @@ end
 
 function MythicHandlers.SelectVaultItem(player, itemIndex)
     local guid = player:GetGUIDLow()
-    local cache = PlayerVaultCache[guid]
+    local claimable = GetPlayerClaimableVault(guid)
     
-    if not cache or not cache.can_collect or cache.has_collected then
+    if not claimable or not claimable.can_collect or claimable.has_collected then
         player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "No loot available to collect."))
         return
     end
     
     local itemId = nil
-    if itemIndex == 1 then itemId = cache.item_1_id
-    elseif itemIndex == 2 then itemId = cache.item_2_id
-    elseif itemIndex == 3 then itemId = cache.item_3_id
+    if itemIndex == 1 then itemId = claimable.item_1_id
+    elseif itemIndex == 2 then itemId = claimable.item_2_id
+    elseif itemIndex == 3 then itemId = claimable.item_3_id
     end
     
     if itemId then
@@ -1419,8 +1459,9 @@ function MythicHandlers.SelectVaultItem(player, itemIndex)
         else
             player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "Reward:") .. " " .. itemName)
         end
-        cache.has_collected = true
-        SavePlayerVaultCache(guid)
+        claimable.has_collected = true
+        SaveClaimableVault(guid, claimable)
+        PlayerClaimableVaultCache[guid] = nil
         ClearVaultProximityEvent(player:GetGUID())
         
         AIO.Handle(player, "AIO_Mythic", "UpdateVaultStatus", false)
@@ -1439,44 +1480,37 @@ function MythicHandlers.RequestVaultStatus(player)
     end
     
     local guid = player:GetGUIDLow()
-    if not PlayerVaultCache[guid] then
-        LoadPlayerVaultCache(guid)
+    local claimable = GetPlayerClaimableVault(guid)
+    
+    if claimable and claimable.successful_runs > 0 and not claimable.items_generated and not claimable.has_collected then
+        GenerateVaultItemsForPlayer(player, claimable)
     end
     
-    local cache = PlayerVaultCache[guid]
-    
-    if cache.successful_runs > 0 and not cache.items_generated and not cache.has_collected then
-        GenerateVaultItemsForPlayer(player)
-    end
-    
-    local hasLoot = cache.can_collect and not cache.has_collected
+    local hasLoot = claimable and claimable.can_collect and not claimable.has_collected or false
     AIO.Handle(player, "AIO_Mythic", "UpdateVaultStatus", hasLoot)
 end
 
 local function ProcessWeeklyVaultGeneration()
     local currentWeek = GetCurrentVaultWeek()
+    CharDBQuery(string.format([[
+        UPDATE character_mythic_vault 
+        SET can_collect = 1 
+        WHERE week_start <= '%s' AND successful_runs > 0 AND can_collect = 0
+    ]], currentWeek))
+    
     local query = CharDBQuery(string.format([[
         SELECT DISTINCT guid FROM character_mythic_vault 
-        WHERE week_start = '%s' AND successful_runs > 0 AND NOT items_generated
+        WHERE week_start <= '%s' AND successful_runs > 0 AND can_collect = 1 AND has_collected = 0 AND NOT items_generated
     ]], currentWeek))
     
     if query then
         repeat
             local guid = query:GetUInt32(0)
             local player = GetPlayerByGUID(GetPlayerGUID(guid))
+            local claimable = GetPlayerClaimableVault(guid)
             
-            if player then
-                GenerateVaultItemsForPlayer(player)
-            else
-                if not PlayerVaultCache[guid] then
-                    LoadPlayerVaultCache(guid)
-                end
-
-                local cache = PlayerVaultCache[guid]
-                if cache then
-                    cache.can_collect = true
-                    SavePlayerVaultCache(guid)
-                end
+            if player and claimable then
+                GenerateVaultItemsForPlayer(player, claimable)
             end
         until not query:NextRow()
     end
@@ -3388,6 +3422,7 @@ local function OnPlayerLogout(event, player)
     if PlayerRatingCache[guid] then
         SavePlayerRatingCache(guid)
     end
+    PlayerClaimableVaultCache[guid] = nil
 end
 
 local function HandleKeystoneChatCommand(event, player, msg, Type, lang)
