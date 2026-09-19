@@ -1284,88 +1284,123 @@ settingsContainer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -20, 15)
 settingsContainer:Hide()
 frame.settingsContainer = settingsContainer
 
-local settingsBanner, settingsTitle = CreateBannerTitle(settingsContainer, MythicGetText("UI", "Settings") or "Settings", -5)
+local settingsBanner, settingsTitle = CreateBannerTitle(settingsContainer, MythicGetText("UI", "Settings") or "Settings", -4)
 frame.settingsTitle = settingsTitle
 frame.settingsBanner = settingsBanner
 
--- Section 1: Rules & Keystones
-local sec1Header = settingsContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-sec1Header:SetPoint("TOPLEFT", settingsContainer, "TOPLEFT", 30, -78)
-sec1Header:SetText("|cffffd100[ Keystone & Progression Rules ]|r")
+-- Helper to create styled card panels
+local function CreateSettingCard(parent, titleText, yOffset, height)
+    local card = CreateFrame("Frame", nil, parent)
+    card:SetSize(520, height)
+    card:SetPoint("TOP", parent, "TOP", 0, yOffset)
+    card:SetBackdrop({
+        bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 12,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 }
+    })
+    card:SetBackdropColor(0.04, 0.04, 0.06, 0.55)
+    card:SetBackdropBorderColor(0.55, 0.45, 0.25, 0.75)
 
--- Option 1: Cheat Mode
-local optNoKey = CreateFrame("CheckButton", "MythicPlusSetting_NoKey", settingsContainer, "UICheckButtonTemplate")
-optNoKey:SetPoint("TOPLEFT", settingsContainer, "TOPLEFT", 40, -104)
-optNoKey:SetSize(24, 24)
-local optNoKeyText = _G[optNoKey:GetName() .. "Text"]
-if optNoKeyText then
-    optNoKeyText:SetText(" No Keystone Required (Cheat Mode)")
-    optNoKeyText:SetFontObject("GameFontHighlight")
+    local title = card:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    title:SetPoint("TOPLEFT", card, "TOPLEFT", 14, -10)
+    title:SetText(titleText)
+
+    return card
 end
-local optNoKeyDesc = settingsContainer:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-optNoKeyDesc:SetPoint("TOPLEFT", optNoKey, "BOTTOMLEFT", 28, -2)
+
+-- CARD 1: Keystone & Progression Rules
+local card1 = CreateSettingCard(settingsContainer, "|cffffd100[ Keystone & Progression Rules ]|r", -72, 116)
+
+-- Option 1: Cheat Mode Checkbox
+local optNoKey = CreateFrame("CheckButton", "MythicPlusSetting_NoKey", card1, "UICheckButtonTemplate")
+optNoKey:SetPoint("TOPLEFT", card1, "TOPLEFT", 18, -32)
+optNoKey:SetSize(24, 24)
+
+local optNoKeyLabel = card1:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+optNoKeyLabel:SetPoint("LEFT", optNoKey, "RIGHT", 6, 0)
+optNoKeyLabel:SetText("No Keystone Required (Cheat Mode)")
+
+local optNoKeyDesc = card1:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+optNoKeyDesc:SetPoint("TOPLEFT", optNoKey, "BOTTOMLEFT", 28, -1)
 optNoKeyDesc:SetText("Allows opening Font of Power and selecting any tier (1-100) without a keystone.")
 
--- Option 2: Cross-Dungeon Reattunement
-local optReattune = CreateFrame("CheckButton", "MythicPlusSetting_Reattune", settingsContainer, "UICheckButtonTemplate")
-optReattune:SetPoint("TOPLEFT", settingsContainer, "TOPLEFT", 40, -150)
+-- Option 2: Cross-Dungeon Reattunement Checkbox
+local optReattune = CreateFrame("CheckButton", "MythicPlusSetting_Reattune", card1, "UICheckButtonTemplate")
+optReattune:SetPoint("TOPLEFT", card1, "TOPLEFT", 18, -72)
 optReattune:SetSize(24, 24)
-local optReattuneText = _G[optReattune:GetName() .. "Text"]
-if optReattuneText then
-    optReattuneText:SetText(" Allow Cross-Dungeon Key Reattunement")
-    optReattuneText:SetFontObject("GameFontHighlight")
-end
-local optReattuneDesc = settingsContainer:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-optReattuneDesc:SetPoint("TOPLEFT", optReattune, "BOTTOMLEFT", 28, -2)
+
+local optReattuneLabel = card1:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+optReattuneLabel:SetPoint("LEFT", optReattune, "RIGHT", 6, 0)
+optReattuneLabel:SetText("Allow Cross-Dungeon Key Reattunement")
+
+local optReattuneDesc = card1:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+optReattuneDesc:SetPoint("TOPLEFT", optReattune, "BOTTOMLEFT", 28, -1)
 optReattuneDesc:SetText("Allows players to re-attune their keystone to the current dungeon at the fountain.")
 
--- Section 2: Heroic Difficulty Bonuses
-local sec2Header = settingsContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-sec2Header:SetPoint("TOPLEFT", settingsContainer, "TOPLEFT", 30, -196)
-sec2Header:SetText("|cffffd100[ Heroic Difficulty Reward Multipliers ]|r")
+-- CARD 2: Heroic Difficulty Reward Multipliers
+local card2 = CreateSettingCard(settingsContainer, "|cffffd100[ Heroic Difficulty Reward Multipliers ]|r", -198, 150)
 
 local function CreateSettingRow(parent, name, labelText, defaultVal, yOffset, tipText)
     local label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    label:SetPoint("TOPLEFT", parent, "TOPLEFT", 40, yOffset)
+    label:SetPoint("TOPLEFT", parent, "TOPLEFT", 18, yOffset)
     label:SetText(labelText)
 
-    local box = CreateFrame("EditBox", name, parent, "InputBoxTemplate")
-    box:SetSize(60, 20)
-    box:SetPoint("TOPLEFT", parent, "TOPLEFT", 220, yOffset + 2)
+    local box = CreateFrame("EditBox", name, parent)
+    box:SetSize(65, 22)
+    box:SetPoint("TOPLEFT", parent, "TOPLEFT", 195, yOffset + 2)
     box:SetAutoFocus(false)
     box:SetText(defaultVal)
-    box:SetFontObject("GameFontHighlightSmall")
+    box:SetFont("Fonts\\FRIZQT__.TTF", 11, "")
+    box:SetTextColor(1, 1, 1, 1)
     box:SetJustifyH("CENTER")
+    box:SetBackdrop({
+        bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 10,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 }
+    })
+    box:SetBackdropColor(0.02, 0.02, 0.04, 0.85)
+    box:SetBackdropBorderColor(0.6, 0.5, 0.3, 0.8)
+
+    box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    box:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    box:SetScript("OnEditFocusGained", function(self)
+        self:SetBackdropBorderColor(1, 0.85, 0.2, 1)
+    end)
+    box:SetScript("OnEditFocusLost", function(self)
+        self:SetBackdropBorderColor(0.6, 0.5, 0.3, 0.8)
+    end)
 
     if tipText then
         local tip = parent:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-        tip:SetPoint("LEFT", box, "RIGHT", 14, 0)
+        tip:SetPoint("LEFT", box, "RIGHT", 12, 0)
         tip:SetText(tipText)
     end
 
     return box
 end
 
-local boxBonusChance = CreateSettingRow(settingsContainer, "MythicSetting_BonusChanceBox", "Loot Bonus Multiplier:", "1.25", -224, "|cff888888(e.g. 1.25 = +25% drop chance)|r")
-local boxExtraEmblem = CreateSettingRow(settingsContainer, "MythicSetting_ExtraEmblemBox", "Extra Emblem Reward:", "1", -252, "|cff888888(Extra Emblems of Frost awarded)|r")
-local boxGoldMult    = CreateSettingRow(settingsContainer, "MythicSetting_GoldMultBox",    "Gold Reward Multiplier:", "1.50", -280, "|cff888888(e.g. 1.50 = +50% bonus gold)|r")
-local boxRatingMult  = CreateSettingRow(settingsContainer, "MythicSetting_RatingMultBox",  "Rating Score Multiplier:", "1.10", -308, "|cff888888(e.g. 1.10 = +10% rating score)|r")
+local boxBonusChance = CreateSettingRow(card2, "MythicSetting_BonusChanceBox", "Loot Bonus Multiplier:", "1.25", -34, "|cff888888(e.g. 1.25 = +25% drop chance)|r")
+local boxExtraEmblem = CreateSettingRow(card2, "MythicSetting_ExtraEmblemBox", "Extra Emblem Reward:", "1", -62, "|cff888888(Extra Emblems of Frost awarded)|r")
+local boxGoldMult    = CreateSettingRow(card2, "MythicSetting_GoldMultBox",    "Gold Reward Multiplier:", "1.50", -90, "|cff888888(e.g. 1.50 = +50% bonus gold)|r")
+local boxRatingMult  = CreateSettingRow(card2, "MythicSetting_RatingMultBox",  "Rating Score Multiplier:", "1.10", -118, "|cff888888(e.g. 1.10 = +10% rating score)|r")
 
 -- Status Message (Centered at bottom)
 local statusMsg = settingsContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-statusMsg:SetPoint("BOTTOM", settingsContainer, "BOTTOM", 0, 22)
+statusMsg:SetPoint("BOTTOM", settingsContainer, "BOTTOM", 0, 20)
 statusMsg:SetJustifyH("CENTER")
 statusMsg:SetText("")
 
 -- Action Buttons (Centered side by side)
 local saveBtn = CreateFrame("Button", "MythicSetting_SaveBtn", settingsContainer, "UIPanelButtonTemplate")
 saveBtn:SetSize(130, 28)
-saveBtn:SetPoint("BOTTOM", settingsContainer, "BOTTOM", -75, 48)
+saveBtn:SetPoint("BOTTOM", settingsContainer, "BOTTOM", -75, 46)
 saveBtn:SetText("Save Settings")
 
 local resetBtn = CreateFrame("Button", "MythicSetting_ResetBtn", settingsContainer, "UIPanelButtonTemplate")
 resetBtn:SetSize(130, 28)
-resetBtn:SetPoint("BOTTOM", settingsContainer, "BOTTOM", 75, 48)
+resetBtn:SetPoint("BOTTOM", settingsContainer, "BOTTOM", 75, 46)
 resetBtn:SetText("Reset Defaults")
 
 saveBtn:SetScript("OnClick", function()
