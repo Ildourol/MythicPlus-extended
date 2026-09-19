@@ -2443,15 +2443,21 @@ local function MythicPlayerDeath(event, killer, killed)
     end
 end
 
-local function GiveStartingKeystone(player)
+local function GiveStartingKeystone(player, targetMapId)
     if not player or not player:IsInWorld() then return false end
     local guid = player:GetGUIDLow()
-    if PlayerHasAnyKeystone(player) or PlayerKeysCache[guid] then
+
+    local newMapId = targetMapId
+    if not newMapId or not mythicDungeonIds[newMapId] then
+        newMapId = GetRandomMythicMapId()
+    end
+    local newTier = 1
+
+    -- If player already has a keystone in bags and DB with tier > 1, protect their higher tier progression
+    if PlayerHasAnyKeystone(player) and PlayerKeysCache[guid] and PlayerKeysCache[guid].tier > 1 then
         return false
     end
 
-    local newMapId = GetRandomMythicMapId()
-    local newTier = 1
     PlayerKeysCache[guid] = { mapId = newMapId, tier = newTier }
     CharDBQuery(string.format("REPLACE INTO character_mythic_keys (guid, mapId, tier) VALUES (%d, %d, %d)", guid, newMapId, newTier))
 
@@ -2460,7 +2466,8 @@ local function GiveStartingKeystone(player)
     end
 
     local dungeonName = GetLocalizedDungeonName(player, newMapId)
-    player:SendBroadcastMessage(string.format("[Mythic+] %s (%s)", GetLocalizedText(player, "UI", "You received a Mythic Keystone!"), dungeonName))
+    player:SendBroadcastMessage(string.format("[Mythic+] %s (%s - Mythic +%d)", 
+        GetLocalizedText(player, "UI", "You received a Mythic Keystone!"), dungeonName, newTier))
 
     CreateLuaEvent(function()
         local p = GetPlayerByGUID(guid)
@@ -2508,7 +2515,7 @@ local function CheckMalGanisEvade(event, creature)
         else
             for _, player in ipairs(players) do
                 if player:IsInWorld() and player:GetMapId() == 595 then
-                    GiveStartingKeystone(player)
+                    GiveStartingKeystone(player, 595)
                 end
             end
         end
@@ -2903,6 +2910,12 @@ local function DungeonEndbossKeyReward(event, player, killed)
     -- Special multi-phase final encounters
     if mapId == 543 and (killedEntry == 17307 or killedEntry == 17536) then
         isFinal = true -- Hellfire Ramparts: Vazruden or Nazan
+    elseif mapId == 189 and (killedEntry == 3977 or killedEntry == 3976) then
+        isFinal = true -- Scarlet Monastery: Whitemane or Mograine
+    elseif mapId == 429 and (killedEntry == 11492 or killedEntry == 11496 or killedEntry == 11486) then
+        isFinal = true -- Dire Maul: Alzzin, Gordok, or Immol'thar
+    elseif mapId == 650 and (killedEntry == 35451 or killedEntry == 35617) then
+        isFinal = true -- Trial of the Champion: Black Knight
     end
 
     if isFinal then
@@ -2910,7 +2923,7 @@ local function DungeonEndbossKeyReward(event, player, killed)
         local members = group and group:GetMembers() or { player }
         for _, member in ipairs(members) do
             if member and member:IsInWorld() and member:GetMapId() == mapId then
-                GiveStartingKeystone(member)
+                GiveStartingKeystone(member, mapId)
             end
         end
     end
