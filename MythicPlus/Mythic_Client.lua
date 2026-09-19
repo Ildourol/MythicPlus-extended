@@ -1514,6 +1514,8 @@ function MythicHandlers.ReceiveLeaderboard(_, topThree, dungeonTop)
 end
 
 function MythicHandlers.StartMythicTimerGUI(_, mapId, tier, duration, bossNames, potentialGain, enemiesRequired)
+    MythicHandlers.KillMythicTimerGUI()
+
     potentialGain = tonumber(potentialGain) or 0
     enemiesRequired = tonumber(enemiesRequired) or 50
     if type(bossNames) ~= "table" then bossNames = {} end
@@ -1523,7 +1525,7 @@ function MythicHandlers.StartMythicTimerGUI(_, mapId, tier, duration, bossNames,
     local baseHeight = 140 + #bossNames * 18
     local frameHeight = (enemiesRequired > 0) and (baseHeight + 28) or baseHeight
 
-    local timerFrame = CreateFrame("Frame", nil, UIParent)
+    local timerFrame = CreateFrame("Frame", "MythicBossTimerFrame", UIParent)
     timerFrame:SetSize(320, frameHeight)
     timerFrame:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -20, -120)
     timerFrame:SetMovable(true)
@@ -1768,17 +1770,33 @@ end
 
 function MythicHandlers.KillMythicTimerGUI()
     WatchFrame:Show(); WATCHFRAME_COLLAPSED = nil
-    if MythicBossTimerUI and MythicBossTimerUI.frame then
-        MythicBossTimerUI.frame.stopped = true
-        MythicBossTimerUI.frame:Hide()
-        MythicBossTimerUI.frame:SetScript("OnUpdate", nil)
-        MythicBossTimerUI.frame:SetParent(nil)
-        MythicBossTimerUI.frame = nil
+    if _G["MythicBossTimerFrame"] then
+        _G["MythicBossTimerFrame"].stopped = true
+        _G["MythicBossTimerFrame"]:SetScript("OnUpdate", nil)
+        _G["MythicBossTimerFrame"]:Hide()
+        _G["MythicBossTimerFrame"]:ClearAllPoints()
+        _G["MythicBossTimerFrame"]:SetParent(nil)
+        _G["MythicBossTimerFrame"] = nil
     end
-    MythicBossTimerUI = nil
+    if MythicBossTimerUI then
+        if MythicBossTimerUI.frame then
+            MythicBossTimerUI.frame.stopped = true
+            MythicBossTimerUI.frame:SetScript("OnUpdate", nil)
+            MythicBossTimerUI.frame:Hide()
+            MythicBossTimerUI.frame:ClearAllPoints()
+            MythicBossTimerUI.frame:SetParent(nil)
+            MythicBossTimerUI.frame = nil
+        end
+        MythicBossTimerUI = nil
+    end
+    if MythicHandlers.ClearRunState then
+        MythicHandlers.ClearRunState()
+    end
 end
 
 function MythicHandlers.StartCountdown(_, seconds)
+    MythicHandlers.KillMythicTimerGUI()
+
     seconds = tonumber(seconds) or 10
     if CountdownFrame then
         CountdownFrame:Hide()

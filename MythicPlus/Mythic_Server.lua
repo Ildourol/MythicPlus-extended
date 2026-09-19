@@ -2008,6 +2008,7 @@ local function StartMythicRun(player, creature, tier)
     for _, memberGuid in ipairs(memberGuids) do
         local member = GetPlayerByGUID(memberGuid)
         if member and member:IsInWorld() and member:GetMapId() == mapId then
+            AIO.Handle(member, "AIO_Mythic", "KillMythicTimerGUI")
             AIO.Handle(member, "AIO_Mythic", "StartCountdown", 10)
         end
     end
