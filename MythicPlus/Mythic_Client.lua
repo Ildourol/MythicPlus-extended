@@ -1513,7 +1513,7 @@ function MythicHandlers.ReceiveLeaderboard(_, topThree, dungeonTop)
     UpdateLeaderboardList()
 end
 
-function MythicHandlers.StartMythicTimerGUI(_, mapId, tier, duration, bossNames, potentialGain, enemiesRequired)
+function MythicHandlers.StartMythicTimerGUI(_, mapId, tier, duration, bossNames, potentialGain, enemiesRequired, serverAffixes)
     MythicHandlers.KillMythicTimerGUI()
 
     potentialGain = tonumber(potentialGain) or 0
@@ -1592,11 +1592,13 @@ function MythicHandlers.StartMythicTimerGUI(_, mapId, tier, duration, bossNames,
     local affixIcons = {}
     local currentAffixes = {}
 
-    if MythicPlusFrame and MythicPlusFrame.currentAffixes then
+    if serverAffixes and type(serverAffixes) == "table" and #serverAffixes > 0 then
+        currentAffixes = serverAffixes
+    elseif MythicPlusFrame and MythicPlusFrame.currentAffixes then
         currentAffixes = MythicPlusFrame.currentAffixes
     end
 
-    local numAffixes = math.min(tier, 4)
+    local numAffixes = #currentAffixes > 0 and #currentAffixes or math.min(tier, 4)
     local iconSize = 20
     local iconSpacing = 4
     local totalWidth = (numAffixes * iconSize) + ((numAffixes - 1) * iconSpacing)
@@ -1615,7 +1617,15 @@ function MythicHandlers.StartMythicTimerGUI(_, mapId, tier, duration, bossNames,
             
             icon:SetScript("OnEnter", function(self)
                 GameTooltip:SetOwner(self, "ANCHOR_TOP")
-                GameTooltip:SetText(affixName)
+                local affixInfo = AFFIXES[affixName]
+                if affixInfo then
+                    GameTooltip:SetText(affixInfo.color .. affixName .. "|r")
+                    if affixInfo.description then
+                        GameTooltip:AddLine(affixInfo.description(), 1, 1, 1, true)
+                    end
+                else
+                    GameTooltip:SetText(affixName)
+                end
                 GameTooltip:Show()
             end)
             

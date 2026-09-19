@@ -33,8 +33,10 @@ CREATE TABLE IF NOT EXISTS `character_mythic_history` (
   `member_3` int unsigned DEFAULT NULL,
   `member_4` int unsigned DEFAULT NULL,
   `member_5` int unsigned DEFAULT NULL,
-  PRIMARY KEY (`run_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+  PRIMARY KEY (`run_id`),
+  KEY `idx_map_tier_completed` (`mapId`, `tier`, `completed`),
+  KEY `idx_member_1` (`member_1`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Data exporting was unselected.
 

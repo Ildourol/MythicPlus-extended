@@ -913,7 +913,7 @@ local PEDESTAL_NPC_ENTRY = 900001
 local WEEKLY_AFFIX_POOL = {
     { spell = 8599, name = "Enrage" },
     { spell = {48441, 61301}, name = "Rejuvenating" },
-    { spell = 871, name = "Turtling" },
+    { spell = 22812, name = "Turtling" },
     { spell = {57662, 57621, 58738, 8515}, name = "Shamanism" },
     { spell = {43015, 43008, 43046, 57531, 12043}, name = "Magus" },
     { spell = {48161, 48066, 6346, 48168, 15286}, name = "Priest Empowered" },
@@ -1560,6 +1560,18 @@ local function GetAffixSet(tier)
     return affixes
 end
 
+local function GetAffixNameTable(tier)
+    local names = {}
+    local num = math.min(tier, 4)
+    for i = 1, num do
+        local affix = WeeklyAffixesCache[i]
+        if affix then
+            table.insert(names, affix.name)
+        end
+    end
+    return names
+end
+
 local function GetAffixNameSet(tier)
     local names = {}
     for i = 1, tier do
@@ -1695,8 +1707,9 @@ local function RestoreMythicTimerGUI(player)
             local penalty = deaths * penaltyPerDeath
             local potentialGain = CalculateMythicRating(tier, 100)
             local enemiesReq = (bossData.enemies and bossData.enemies > 0) and bossData.enemies or 0
+            local activeAffixNames = GetAffixNameTable(tier)
             
-            AIO.Handle(player, "AIO_Mythic", "StartMythicTimerGUI", mapId, tier, remainingTime, GetLocalizedBossNames(player, mapId), potentialGain, enemiesReq)
+            AIO.Handle(player, "AIO_Mythic", "StartMythicTimerGUI", mapId, tier, remainingTime, GetLocalizedBossNames(player, mapId), potentialGain, enemiesReq, activeAffixNames)
             AIO.Handle(player, "AIO_Mythic", "UpdateMythicScore", penalty, deaths)
             
             if bossTracker and bossTracker.indexMap then
@@ -2026,6 +2039,23 @@ local function StartMythicRun(player, creature, tier)
         return
     end
 
+    if player:IsInCombat() then
+        player:SendBroadcastMessage("[Mythic+] You cannot start a Mythic+ challenge while in combat!")
+        player:GossipComplete()
+        return
+    end
+
+    local group = player:GetGroup()
+    if group then
+        for _, member in ipairs(group:GetMembers()) do
+            if member and member:IsInWorld() and member:GetMapId() == mapId and member:IsInCombat() then
+                player:SendBroadcastMessage(string.format("[Mythic+] Cannot start: %s is currently in combat!", member:GetName()))
+                player:GossipComplete()
+                return
+            end
+        end
+    end
+
     local now = os.time()
     local group = player:GetGroup()
     local members = group and group:GetMembers() or {player}
@@ -2217,10 +2247,11 @@ local function StartMythicRun(player, creature, tier)
                 ]], actualStartTime, ActiveRunsCache[instanceId].run_id))
             end
 
+            local activeAffixNames = GetAffixNameTable(tier)
             for _, memberGuid in ipairs(memberGuids) do
                 local member = GetPlayerByGUID(memberGuid)
                 if member and member:IsInWorld() and member:GetMapId() == mapId then
-                    AIO.Handle(member, "AIO_Mythic", "StartMythicTimerGUI", mapId, tier, bossData.timer or 900, GetLocalizedBossNames(member, mapId), potentialGain, bossData.enemies or 50)
+                    AIO.Handle(member, "AIO_Mythic", "StartMythicTimerGUI", mapId, tier, bossData.timer or 900, GetLocalizedBossNames(member, mapId), potentialGain, bossData.enemies or 50, activeAffixNames)
                 end
             end
         end
@@ -2262,6 +2293,23 @@ function Pedestal_OnGossipHello(_, player, creature)
         player:SendBroadcastMessage("[Mythic+] This area is not a registered Mythic+ dungeon.")
         player:GossipComplete()
         return
+    end
+
+    if player:IsInCombat() then
+        player:SendBroadcastMessage("[Mythic+] You cannot interact with the Font of Power while in combat.")
+        player:GossipComplete()
+        return
+    end
+
+    local group = player:GetGroup()
+    if group then
+        for _, member in ipairs(group:GetMembers()) do
+            if member and member:IsInWorld() and member:GetMapId() == currentMapId and member:IsInCombat() then
+                player:SendBroadcastMessage(string.format("[Mythic+] Cannot activate: %s is currently in combat!", member:GetName()))
+                player:GossipComplete()
+                return
+            end
+        end
     end
 
     player:GossipClearMenu()
@@ -2629,6 +2677,24 @@ local function MythicEnemyKillCheck(event, player, killed)
     end
 
     if not killed:IsHostileTo(p) then
+        return
+    end
+
+    local cType = killed:GetCreatureType()
+    -- 8 = Critter, 11 = Totem, 12 = Non-combat Pet, 13 = Gas Cloud
+    if cType == 8 or cType == 11 or cType == 12 or cType == 13 then
+        return
+    end
+    if killed.IsTotem and killed:IsTotem() then
+        return
+    end
+    if killed.IsCritter and killed:IsCritter() then
+        return
+    end
+    if killed.IsPet and killed:IsPet() then
+        return
+    end
+    if killed:GetLevel() <= 1 then
         return
     end
 
