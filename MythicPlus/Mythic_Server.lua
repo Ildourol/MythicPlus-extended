@@ -498,6 +498,82 @@ local allSupportedDungeonIds = {
     543, 542, 540, 547, 546, 545, 557, 558, 556, 555, 560, 269, 553, 552, 554, 585
 }
 
+-- Strict mapping: ONLY the last boss of each dungeon/wing qualifies to reward the level 1 key!
+local DUNGEON_LAST_BOSSES = {
+    -- WotLK Dungeons
+    [23954] = 574, -- Utgarde Keep: Ingvar the Plunderer
+    [26861] = 575, -- Utgarde Pinnacle: King Ymiron
+    [26723] = 576, -- The Nexus: Keristrasza
+    [27978] = 599, -- Halls of Stone: Sjonnir The Ironshaper
+    [26632] = 600, -- Drak'Tharon Keep: The Prophet Tharon'ja
+    [29120] = 601, -- Azjol-Nerub: Anub'arak
+    [28923] = 602, -- Halls of Lightning: Loken
+    [29306] = 604, -- Gundrak: Gal'darah
+    [31134] = 608, -- The Violet Hold: Cyanigosa
+    [29311] = 619, -- Ahn'kahet: The Old Kingdom: Herald Volazj
+    [27656] = 578, -- The Oculus: Ley-Guardian Eregos
+    [26533] = 595, -- Culling of Stratholme: Mal'Ganis
+    [35451] = 650, -- Trial of the Champion: The Black Knight
+    [35617] = 650, -- Trial of the Champion: The Black Knight (alternate)
+    [36502] = 632, -- Forge of Souls: Devourer of Souls
+    [36658] = 658, -- Pit of Saron: Scourgelord Tyrannus
+    [36954] = 668, -- Halls of Reflection: Escape from Arthas
+    [38113] = 668, -- Halls of Reflection: Marwyn
+
+    -- Vanilla Dungeons
+    [11519] = 389, -- Ragefire Chasm: Taragaman the Hungerer
+    [639]   = 36,  -- Deadmines: Edwin VanCleef
+    [3654]  = 43,  -- Wailing Caverns: Mutanus the Devourer
+    [4275]  = 33,  -- Shadowfang Keep: Archmage Arugal
+    [4829]  = 48,  -- Blackfathom Deeps: Aku'mai
+    [1716]  = 34,  -- The Stockade: Bazil Thredd
+    [7800]  = 90,  -- Gnomeregan: Mekgineer Thermaplugg
+    [4421]  = 47,  -- Razorfen Kraul: Charlga Razorflank
+    [7358]  = 129, -- Razorfen Downs: Amnennar the Coldbringer
+    -- Scarlet Monastery (Map 189 wings)
+    [3977]  = 189, -- SM Cathedral: High Inquisitor Whitemane
+    [3976]  = 189, -- SM Cathedral: Scarlet Commander Mograine
+    [3975]  = 189, -- SM Armory: Herod
+    [6487]  = 189, -- SM Library: Arcanist Doan
+    [4543]  = 189, -- SM Graveyard: Bloodmage Thalnos
+    [2748]  = 70,  -- Uldaman: Archaedas
+    [7267]  = 209, -- Zul'Farrak: Chief Ukorz Sandscalp
+    [7275]  = 209, -- Zul'Farrak: Ruuzlu
+    [12201] = 349, -- Maraudon: Princess Theradras
+    [5709]  = 109, -- Temple of Atal'Hakkar: Shade of Eranikus
+    [9019]  = 230, -- Blackrock Depths: Emperor Dagran Thaurissan
+    [10363] = 229, -- Blackrock Spire: General Drakkisath (UBRS)
+    [9568]  = 229, -- Blackrock Spire: Overlord Wyrmthalak (LBRS)
+    -- Dire Maul (Map 429 wings)
+    [11492] = 429, -- Dire Maul East: Alzzin the Wildshaper
+    [11496] = 429, -- Dire Maul North: King Gordok
+    [11487] = 429, -- Dire Maul West: Prince Tortheldrin
+    [11486] = 429, -- Dire Maul West: Immol'thar
+    [1853]  = 289, -- Scholomance: Darkmaster Gandling
+    -- Stratholme (Map 329 wings)
+    [10440] = 329, -- Stratholme Undead: Baron Rivendare
+    [10813] = 329, -- Stratholme Live: Balnazzar
+
+    -- TBC Dungeons
+    [17307] = 543, -- Hellfire Ramparts: Vazruden the Herald
+    [17536] = 543, -- Hellfire Ramparts: Nazan
+    [17377] = 542, -- The Blood Furnace: Keli'dan the Breaker
+    [16808] = 540, -- The Shattered Halls: Warchief Kargath Bladefist
+    [17942] = 547, -- The Slave Pens: Quagmirran
+    [17882] = 546, -- The Underbog: The Black Stalker
+    [17798] = 545, -- The Steamvault: Warlord Kalithresh
+    [18344] = 557, -- Mana-Tombs: Nexus-Prince Shaffar
+    [18373] = 558, -- Auchenai Crypts: Exarch Maladaar
+    [18473] = 556, -- Sethekk Halls: Talon King Ikiss
+    [18708] = 555, -- Shadow Labyrinth: Murmur
+    [18096] = 560, -- Old Hillsbrad Foothills: Epoch Hunter
+    [17881] = 269, -- The Black Morass: Aeonus
+    [17977] = 553, -- The Botanica: Warp Splinter
+    [20912] = 552, -- The Arcatraz: Harbinger Skyriss
+    [19220] = 554, -- The Mechanar: Pathaleon the Calculator
+    [24664] = 585, -- Magisters' Terrace: Kael'thas Sunstrider
+}
+
 local DEFAULT_FOUNTAIN_SPAWNS = {
     -- WotLK Dungeons
     [574] = {173.299, -92.1371, 12.5535, 2.75347},     -- Utgarde Keep
@@ -628,6 +704,19 @@ local PlayerRatingCache = {}
 local PlayerNamesCache = {}
 local WeeklyAffixesCache = nil
 local ActiveRunsCache = {}
+local InstanceKeyRewardedCache = {}
+local GiveStartingKeystone
+
+local function GetPlayersInInstance(mapId, instanceId)
+    local players = {}
+    for _, p in ipairs(GetPlayersInWorld()) do
+        if p and p:IsInWorld() and p:GetMapId() == mapId and p:GetInstanceId() == instanceId then
+            table.insert(players, p)
+        end
+    end
+    return players
+end
+
 local LeaderboardCache = {
     topThree = {},
     dungeonTop = {},
@@ -2212,45 +2301,116 @@ function StartBossScanLoop(player, instanceId, mapId, tier)
     end
 end
 
-local function MythicBossKillCheck(event, player, killed)
-    local map = player:GetMap()
+local function HandleDungeonEndbossReward(creature, killer)
+    if not creature then return end
+    local map = creature:GetMap()
     if not map then return end
-    local mapId      = map:GetMapId()
+    local mapId = map:GetMapId()
+    if not mythicDungeonIds[mapId] then return end
+
     local instanceId = map:GetInstanceId()
+    if MYTHIC_FLAG_TABLE[instanceId] or ActiveRunsCache[instanceId] then return end
 
-    if not IsRunActive(instanceId) then return end
+    local entry = creature:GetEntry()
+    local targetMapId = DUNGEON_LAST_BOSSES[entry]
 
-    local NO_CORPSE_REMOVE_IDS = {
-        [26692] = true, -- 'Ymirjar Harpooner' in Utgarde Pinnacle // would not spawn harpoons otherwise
-        [28585] = true, -- 'Slag' in Halls of Lightning // respawn would be too fast
-    }
-
-    local entry   = killed:GetEntry()
-    local tracker = MYTHIC_BOSS_KILL_TRACKER[instanceId]
-    if not tracker then return end
-
-    if not NO_CORPSE_REMOVE_IDS[entry] then
-        killed:RemoveCorpse()
+    -- STRICT REQUIREMENT: Only the true LAST boss of this dungeon/wing awards the level 1 Mythic Keystone!
+    if not targetMapId or targetMapId ~= mapId then
+        return
     end
 
-    for i, bossEntry in ipairs(tracker.remaining) do
-        if bossEntry == entry then
-            table.remove(tracker.remaining, i)
-            local bossIndex = tracker.indexMap[entry]
-            local group   = player:GetGroup()
-            local members = group and group:GetMembers() or { player }
-            for _, member in ipairs(members) do
-                if member:IsInWorld() and member:GetMapId() == mapId then
-                    AIO.Handle(member, "AIO_Mythic", "MarkBossKilled", mapId, bossIndex)
-                end
-            end
-            break
+    if InstanceKeyRewardedCache[instanceId] then
+        return
+    end
+    InstanceKeyRewardedCache[instanceId] = true
+
+    local player = nil
+    if killer then
+        if killer:IsPlayer() then
+            player = killer:ToPlayer()
+        elseif killer.GetOwner and killer:GetOwner() and killer:GetOwner():IsPlayer() then
+            player = killer:GetOwner():ToPlayer()
         end
     end
 
-    if #tracker.remaining == 0 then
-        CheckRunCompletion(instanceId, mapId)
+    local members = {}
+    if player and player:IsInWorld() and player:GetMapId() == mapId then
+        local group = player:GetGroup()
+        members = group and group:GetMembers() or { player }
+    else
+        members = creature:GetPlayersInRange(250)
+        if #members == 0 then
+            members = GetPlayersInInstance(mapId, instanceId)
+        end
     end
+
+    for _, member in ipairs(members) do
+        if member and member:IsInWorld() and member:GetMapId() == mapId then
+            GiveStartingKeystone(member, mapId)
+        end
+    end
+end
+
+local function ProcessBossDeath(creature, killer)
+    if not creature then return end
+    local map = creature:GetMap()
+    if not map then return end
+    local mapId = map:GetMapId()
+    local instanceId = map:GetInstanceId()
+    local entry = creature:GetEntry()
+
+    local player = nil
+    if killer then
+        if killer:IsPlayer() then
+            player = killer:ToPlayer()
+        elseif killer.GetOwner and killer:GetOwner() and killer:GetOwner():IsPlayer() then
+            player = killer:GetOwner():ToPlayer()
+        end
+    end
+
+    if IsRunActive(instanceId) then
+        local tracker = MYTHIC_BOSS_KILL_TRACKER[instanceId]
+        if tracker and tracker.remaining then
+            local NO_CORPSE_REMOVE_IDS = {
+                [26692] = true, -- 'Ymirjar Harpooner' in Utgarde Pinnacle // would not spawn harpoons otherwise
+                [28585] = true, -- 'Slag' in Halls of Lightning // respawn would be too fast
+            }
+
+            if not NO_CORPSE_REMOVE_IDS[entry] then
+                creature:RemoveCorpse()
+            end
+
+            for i, bossEntry in ipairs(tracker.remaining) do
+                if bossEntry == entry then
+                    table.remove(tracker.remaining, i)
+                    local bossIndex = tracker.indexMap and tracker.indexMap[entry] or 1
+                    local members = {}
+                    if player and player:IsInWorld() and player:GetMapId() == mapId then
+                        local group = player:GetGroup()
+                        members = group and group:GetMembers() or { player }
+                    else
+                        members = GetPlayersInInstance(mapId, instanceId)
+                    end
+                    for _, member in ipairs(members) do
+                        if member and member:IsInWorld() and member:GetMapId() == mapId then
+                            AIO.Handle(member, "AIO_Mythic", "MarkBossKilled", mapId, bossIndex)
+                        end
+                    end
+                    break
+                end
+            end
+
+            if #tracker.remaining == 0 then
+                CheckRunCompletion(instanceId, mapId)
+            end
+        end
+    else
+        HandleDungeonEndbossReward(creature, killer)
+    end
+end
+
+local function MythicBossKillCheck(event, player, killed)
+    ProcessBossDeath(killed, player)
 end
 
 if MYTHIC_ENEMY_FORCES_TRACKER == nil then MYTHIC_ENEMY_FORCES_TRACKER = {} end
@@ -2323,7 +2483,7 @@ function CheckRunCompletion(instanceId, mapId)
             local group = player:GetGroup()
             members = group and group:GetMembers() or { player }
         else
-            for _, p in ipairs(GetPlayersInMap(mapId, instanceId)) do
+            for _, p in ipairs(GetPlayersInInstance(mapId, instanceId)) do
                 if p:IsInWorld() then
                     local grp = p:GetGroup()
                     members = grp and grp:GetMembers() or { p }
@@ -2375,6 +2535,7 @@ function CheckRunCompletion(instanceId, mapId)
         MYTHIC_AFFIXES_TABLE[instanceId] = nil
         MYTHIC_REWARD_CHANCE_TABLE[instanceId] = nil
         ActiveRunsCache[instanceId] = nil
+        InstanceKeyRewardedCache[instanceId] = nil
         if MYTHIC_LOOP_HANDLERS[instanceId] then
             RemoveEventById(MYTHIC_LOOP_HANDLERS[instanceId])
             MYTHIC_LOOP_HANDLERS[instanceId] = nil
@@ -2443,7 +2604,7 @@ local function MythicPlayerDeath(event, killer, killed)
     end
 end
 
-local function GiveStartingKeystone(player, targetMapId)
+GiveStartingKeystone = function(player, targetMapId)
     if not player or not player:IsInWorld() then return false end
     local guid = player:GetGUIDLow()
 
@@ -2453,8 +2614,17 @@ local function GiveStartingKeystone(player, targetMapId)
     end
     local newTier = 1
 
+    -- Ensure PlayerKeysCache is loaded
+    if not PlayerKeysCache[guid] then
+        local q = CharDBQuery(string.format("SELECT mapId, tier FROM character_mythic_keys WHERE guid = %d", guid))
+        if q then
+            PlayerKeysCache[guid] = { mapId = q:GetUInt32(0), tier = q:GetUInt32(1) }
+        end
+    end
+
     -- If player already has a keystone in bags and DB with tier > 1, protect their higher tier progression
     if PlayerHasAnyKeystone(player) and PlayerKeysCache[guid] and PlayerKeysCache[guid].tier > 1 then
+        player:SendBroadcastMessage(string.format("[Mythic+] You completed the dungeon! Your higher-tier keystone (+%d) is preserved.", PlayerKeysCache[guid].tier))
         return false
     end
 
@@ -2497,7 +2667,7 @@ local function CheckMalGanisEvade(event, creature)
                         for i, bossEntry in ipairs(tracker.remaining) do
                             if bossEntry == 26533 then
                                 table.remove(tracker.remaining, i)
-                                local bossIndex = tracker.indexMap[26533]
+                                local bossIndex = tracker.indexMap and tracker.indexMap[26533] or 4
                                 for _, member in ipairs(members) do
                                     if member:IsInWorld() and member:GetMapId() == 595 then
                                         AIO.Handle(member, "AIO_Mythic", "MarkBossKilled", 595, bossIndex)
@@ -2513,9 +2683,12 @@ local function CheckMalGanisEvade(event, creature)
                 end
             end
         else
-            for _, player in ipairs(players) do
-                if player:IsInWorld() and player:GetMapId() == 595 then
-                    GiveStartingKeystone(player, 595)
+            if not InstanceKeyRewardedCache[instanceId] then
+                InstanceKeyRewardedCache[instanceId] = true
+                for _, player in ipairs(players) do
+                    if player:IsInWorld() and player:GetMapId() == 595 then
+                        GiveStartingKeystone(player, 595)
+                    end
                 end
             end
         end
@@ -2893,40 +3066,7 @@ function MythicHandlers.RequestMapNameAndTier(player)
 end
 
 local function DungeonEndbossKeyReward(event, player, killed)
-    local map = player:GetMap()
-    if not map then return end
-    local mapId = map:GetMapId()
-    if not mythicDungeonIds[mapId] then return end
-
-    local instanceId = map:GetInstanceId()
-    if MYTHIC_FLAG_TABLE[instanceId] or ActiveRunsCache[instanceId] then return end
-
-    local bossData = MythicBosses[mapId]
-    if not bossData then return end
-
-    local killedEntry = killed:GetEntry()
-    local isFinal = (killedEntry == bossData.final)
-
-    -- Special multi-phase final encounters
-    if mapId == 543 and (killedEntry == 17307 or killedEntry == 17536) then
-        isFinal = true -- Hellfire Ramparts: Vazruden or Nazan
-    elseif mapId == 189 and (killedEntry == 3977 or killedEntry == 3976) then
-        isFinal = true -- Scarlet Monastery: Whitemane or Mograine
-    elseif mapId == 429 and (killedEntry == 11492 or killedEntry == 11496 or killedEntry == 11486) then
-        isFinal = true -- Dire Maul: Alzzin, Gordok, or Immol'thar
-    elseif mapId == 650 and (killedEntry == 35451 or killedEntry == 35617) then
-        isFinal = true -- Trial of the Champion: Black Knight
-    end
-
-    if isFinal then
-        local group = player:GetGroup()
-        local members = group and group:GetMembers() or { player }
-        for _, member in ipairs(members) do
-            if member and member:IsInWorld() and member:GetMapId() == mapId then
-                GiveStartingKeystone(member, mapId)
-            end
-        end
-    end
+    HandleDungeonEndbossReward(killed, player)
 end
 
 local function OnPlayerLogin(event, player)
@@ -3031,6 +3171,42 @@ RegisterPlayerEvent(28, LeaveDungeonMap)
 RegisterPlayerEvent(3, OnPlayerLogin)
 RegisterPlayerEvent(4, OnPlayerLogout)
 RegisterCreatureEvent(26533, 1, CheckMalGanisEvade)
+
+local function RegisterAllBossDeathEvents()
+    local registered = {}
+    for mapId, data in pairs(MythicBosses) do
+        if data.bosses then
+            for _, entry in ipairs(data.bosses) do
+                if not registered[entry] then
+                    registered[entry] = true
+                    RegisterCreatureEvent(entry, 4, function(event, creature, killer)
+                        ProcessBossDeath(creature, killer)
+                    end)
+                end
+            end
+        end
+        if data.heroicBosses then
+            for _, entry in ipairs(data.heroicBosses) do
+                if not registered[entry] then
+                    registered[entry] = true
+                    RegisterCreatureEvent(entry, 4, function(event, creature, killer)
+                        ProcessBossDeath(creature, killer)
+                    end)
+                end
+            end
+        end
+    end
+    for entry, _ in pairs(DUNGEON_LAST_BOSSES) do
+        if not registered[entry] then
+            registered[entry] = true
+            RegisterCreatureEvent(entry, 4, function(event, creature, killer)
+                ProcessBossDeath(creature, killer)
+            end)
+        end
+    end
+end
+RegisterAllBossDeathEvents()
+
 RegisterGameObjectEvent(VAULT_GAMEOBJECT_ID, 14, WeeklyVaultInteract)
 CheckAndProcessVaultOnStartup()
 LoadDungeonEntrances()
