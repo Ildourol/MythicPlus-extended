@@ -1,0 +1,65 @@
+#
+# MythicPlus Extended Configuration File
+#
+
+[MythicPlus]
+
+#
+#    MythicPlus.Enable
+#        Description: Enable or disable the MythicPlus script module.
+#        Default:     1 - (Enabled)
+#                     0 - (Disabled)
+#
+MythicPlus.Enable = 1
+
+#
+#    MythicPlus.NoKeystoneRequired
+#        Description: Cheat Mode: If enabled (1), players do not need a Mythic Keystone to start a run,
+#                     and can freely select any tier (1-100) directly at the Font of Power pedestal.
+#                     If disabled (0), normal Mythic+ key progression is enforced: players must have
+#                     a valid keystone in their inventory to open the activation menu.
+#        Default:     0 - (Disabled / Strict Key Progression)
+#                     1 - (Enabled / Cheat Mode)
+#
+MythicPlus.NoKeystoneRequired = 0
+
+#
+#    MythicPlus.AllowKeyReattunement
+#        Description: Cross-dungeon keystone flexibility.
+#                     If set to 0 (Blizzlike), keystones are locked to the dungeon they rolled.
+#                     A Deadmines keystone can only be used in Deadmines.
+#                     If set to 1 (Flexible), the Font of Power offers an option to re-attune
+#                     the player's keystone to the current dungeon at its current tier.
+#        Default:     0 - (Blizzlike strict: key must match dungeon)
+#                     1 - (Flexible: allow re-attuning key at fountain)
+#
+MythicPlus.AllowKeyReattunement = 0
+
+#
+#    MythicPlus.HeroicBonusChance
+#        Description: Drop chance multiplier for Mythic+ runs completed on Heroic difficulty
+#                     compared to Normal difficulty (e.g., 1.25 = +25% bonus chance).
+#        Default:     1.25
+#
+MythicPlus.HeroicBonusChance = 1.25
+
+#
+#    MythicPlus.HeroicExtraEmblem
+#        Description: Number of extra emblems rewarded when completing a run on Heroic difficulty.
+#        Default:     1
+#
+MythicPlus.HeroicExtraEmblem = 1
+
+#
+#    MythicPlus.HeroicGoldMultiplier
+#        Description: Gold reward multiplier on Heroic Mythic+ completion.
+#        Default:     1.5
+#
+MythicPlus.HeroicGoldMultiplier = 1.5
+
+#
+#    MythicPlus.HeroicRatingMultiplier
+#        Description: Rating score multiplier for Heroic Mythic+ completions.
+#        Default:     1.1
+#
+MythicPlus.HeroicRatingMultiplier = 1.1

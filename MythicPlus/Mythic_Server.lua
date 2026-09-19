@@ -30,12 +30,74 @@ local MYTHIC_LOOT_BRACKETS = {
 local MythicRewardConfig = {
     pets      = true,
     mounts    = true,
-    equipment = false,
+    equipment = true,
     spells    = false,
 }
 
-local REQUIRE_KEYSTONE = false
+local MythicConfig = {
+    Enable               = 1,
+    NoKeystoneRequired   = 0,     -- Cheat mode: 1 = no key needed, pick any tier; 0 = key strictly required
+    AllowKeyReattunement = 0,     -- 0 = Blizzlike strict: key must match dungeon; 1 = allow re-attuning key at fountain
+    HeroicBonusChance    = 1.25,  -- 25% higher chance for loot on Heroic
+    HeroicExtraEmblem    = 1,     -- +1 extra emblem on Heroic
+    HeroicGoldMultiplier = 1.5,   -- +50% gold on Heroic
+    HeroicRatingMultiplier = 1.1, -- +10% rating score on Heroic
+}
+
+local REQUIRE_KEYSTONE = true
 local MAX_SELECTABLE_TIER = 100
+
+local function LoadMythicConfig()
+    local candidatePaths = {
+        "MythicPlus.conf",
+        "conf/MythicPlus.conf",
+        "lua_scripts/MythicPlus/MythicPlus.conf",
+        "lua_scripts/MythicPlus/conf/MythicPlus.conf",
+        "../etc/MythicPlus.conf",
+        "MythicPlus.conf.dist",
+        "conf/MythicPlus.conf.dist",
+        "lua_scripts/MythicPlus/MythicPlus.conf.dist",
+        "lua_scripts/MythicPlus/MythicPlus.conf.dist",
+    }
+    for _, path in ipairs(candidatePaths) do
+        local f = io.open(path, "r")
+        if f then
+            for line in f:lines() do
+                line = line:match("^%s*(.-)%s*$")
+                if line ~= "" and not line:match("^#") and not line:match("^%[") then
+                    local key, val = line:match("^([%w%.%_]+)%s*=%s*(.+)$")
+                    if key and val then
+                        val = val:match("^%s*(.-)%s*$")
+                        if key == "MythicPlus.Enable" then
+                            MythicConfig.Enable = tonumber(val) or 1
+                        elseif key == "MythicPlus.NoKeystoneRequired" then
+                            MythicConfig.NoKeystoneRequired = tonumber(val) or 0
+                        elseif key == "MythicPlus.AllowKeyReattunement" then
+                            MythicConfig.AllowKeyReattunement = tonumber(val) or 0
+                        elseif key == "MythicPlus.HeroicBonusChance" then
+                            MythicConfig.HeroicBonusChance = tonumber(val) or 1.25
+                        elseif key == "MythicPlus.HeroicExtraEmblem" then
+                            MythicConfig.HeroicExtraEmblem = tonumber(val) or 1
+                        elseif key == "MythicPlus.HeroicGoldMultiplier" then
+                            MythicConfig.HeroicGoldMultiplier = tonumber(val) or 1.5
+                        elseif key == "MythicPlus.HeroicRatingMultiplier" then
+                            MythicConfig.HeroicRatingMultiplier = tonumber(val) or 1.1
+                        end
+                    end
+                end
+            end
+            f:close()
+            print("[Mythic+] Configuration loaded from: " .. path)
+            break
+        end
+    end
+    REQUIRE_KEYSTONE = (MythicConfig.NoKeystoneRequired == 0)
+    print(string.format("[Mythic+] Keystone requirement: %s (NoKeystoneRequired=%d, AllowKeyReattunement=%d)",
+        REQUIRE_KEYSTONE and "ENABLED (Keys required)" or "DISABLED (Cheat mode active)",
+        MythicConfig.NoKeystoneRequired, MythicConfig.AllowKeyReattunement))
+end
+
+LoadMythicConfig()
 
 local VAULT_LOOT_BRACKETS = {
     ["vault_low"] = {1, 2, 3, 4, 5},
@@ -1419,18 +1481,28 @@ local function CalculateKeystoneUpgrade(timeRemainingPercent, completed)
     end
 end
 
-local function CalculateLootBonus(upgradeLevel)
-    local chanceMultiplier = 1.0
+local function CalculateLootBonus(tier, upgradeLevel)
+    tier = tier or 1
+    upgradeLevel = upgradeLevel or 0
+
+    local chanceMultiplier = 1.0 + (tier * 0.05)
     local maxItems = 1
-    
-    if upgradeLevel == 2 then
-        chanceMultiplier = 1.25
-        maxItems = 1
-    elseif upgradeLevel >= 3 then
-        chanceMultiplier = 1.5
+
+    if tier >= 15 then
+        maxItems = 3
+    elseif tier >= 8 then
         maxItems = 2
+    else
+        maxItems = 1
     end
-    
+
+    if upgradeLevel == 2 then
+        chanceMultiplier = chanceMultiplier * 1.25
+    elseif upgradeLevel >= 3 then
+        chanceMultiplier = chanceMultiplier * 1.5
+        maxItems = maxItems + 1
+    end
+
     return chanceMultiplier, maxItems
 end
 
@@ -1509,27 +1581,30 @@ end
 
 local function DowngradeKeystoneOnFail(player, tier)
     if not REQUIRE_KEYSTONE then return end
+    if not player or not player:IsInWorld() then return end
     local guid = player:GetGUIDLow()
     
-    if not PlayerHasAnyKeystone(player) then
-        if tier > 1 then
-            local newTier = tier - 1
-            local newMapId = GetRandomMythicMapId()
-            PlayerKeysCache[guid] = {mapId = newMapId, tier = newTier}
-            CharDBQuery(string.format("REPLACE INTO character_mythic_keys (guid, mapId, tier) VALUES (%d, %d, %d)", guid, newMapId, newTier))
-            player:AddItem(900100, 1)
-            player:SendBroadcastMessage(string.format("[Mythic+] " .. GetLocalizedText(player, "UI", "Your keystone has been downgraded to Tier %d."), newTier))
-            
-            CreateLuaEvent(function()
-                local p = GetPlayerByGUID(guid)
-                if p then
-                    MythicHandlers.RequestMapNameAndTier(p)
-                end
-            end, 500, 1)
-        else
-            player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "Your keystone was destroyed."))
-        end
+    local newTier = math.max(1, (tier or 2) - 1)
+    local newMapId = GetRandomMythicMapId()
+    PlayerKeysCache[guid] = {mapId = newMapId, tier = newTier}
+    CharDBQuery(string.format("REPLACE INTO character_mythic_keys (guid, mapId, tier) VALUES (%d, %d, %d)", guid, newMapId, newTier))
+    
+    if not player:HasItem(900100) then
+        player:AddItem(900100, 1)
     end
+    
+    local dungeonName = GetLocalizedDungeonName(player, newMapId)
+    player:SendBroadcastMessage(string.format("[Mythic+] %s (%s)", 
+        GetLocalizedText(player, "UI", "Your keystone has been downgraded to Tier %d."):format(newTier),
+        dungeonName
+    ))
+    
+    CreateLuaEvent(function()
+        local p = GetPlayerByGUID(guid)
+        if p then
+            MythicHandlers.RequestMapNameAndTier(p)
+        end
+    end, 200, 1)
 end
 
 local function SetEndOfRunUnitFlags(player)
@@ -1772,10 +1847,12 @@ local function StartMythicRun(player, creature, tier)
     local runIdQuery = CharDBQuery("SELECT LAST_INSERT_ID()")
     local runId = runIdQuery and runIdQuery:GetUInt32(0) or 0
     
+    local diff = map and map:GetDifficulty() or 0
     ActiveRunsCache[instanceId] = {
         guid = guid,
         mapId = mapId,
         tier = tier,
+        diff = diff,
         start_time = nil,
         deaths = 0,
         run_id = runId,
@@ -1795,12 +1872,6 @@ local function StartMythicRun(player, creature, tier)
     local cache = PlayerRatingCache[guid]
     local currentRating = cache and cache[mapId] or 0
     local potentialGain = CalculateMythicRating(tier, 0)
-
-    if REQUIRE_KEYSTONE then
-        player:RemoveItem(900100, 1)
-        PlayerKeysCache[guid] = nil
-        CharDBQuery(string.format("DELETE FROM character_mythic_keys WHERE guid = %d", guid))
-    end
 
     -- Teleport party ~5 yards in front of the Font of Power (facing away from it into the dungeon)
     local front_x, front_y, front_z, player_o
@@ -1928,31 +1999,55 @@ function Pedestal_OnGossipHello(_, player, creature)
     end
 
     if not player:HasItem(900100) then
-        player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "You do not have a Mythic Keystone."))
+        player:GossipClearMenu()
         player:GossipComplete()
+        player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "You do not have a Mythic Keystone."))
         return
     end
 
     local guid = player:GetGUIDLow()
     local keyData = PlayerKeysCache[guid]
-    local tier = keyData and keyData.tier or 1
+    if not keyData then
+        local keyQuery = CharDBQuery(string.format("SELECT mapId, tier FROM character_mythic_keys WHERE guid = %d", guid))
+        if keyQuery then
+            keyData = { mapId = keyQuery:GetUInt32(0), tier = keyQuery:GetUInt32(1) }
+            PlayerKeysCache[guid] = keyData
+        end
+    end
+
+    if not keyData then
+        player:GossipClearMenu()
+        player:GossipComplete()
+        player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "You do not have a Mythic Keystone."))
+        return
+    end
+
+    local tier = keyData.tier or 1
 
     if not HasValidKeyForCurrentDungeon(player) then
-        local keyDungeonName = keyData and keyData.mapId and GetLocalizedDungeonName(player, keyData.mapId) or "Unknown"
+        local keyDungeonName = keyData.mapId and GetLocalizedDungeonName(player, keyData.mapId) or "Unknown"
         local currentDungeonName = GetLocalizedDungeonName(player, currentMapId)
-        player:SendBroadcastMessage(string.format("[Mythic+] Your keystone does not appear to fit. It is attuned to: %s (Tier %d).", keyDungeonName, tier))
 
-        player:GossipMenuAddItem(0, string.format("Keystone attuned to: %s (Tier %d)", keyDungeonName, tier), 0, 999)
-        if mythicDungeonIds[currentMapId] then
-            player:GossipMenuAddItem(0, string.format("Attune Keystone to %s (Tier %d)", currentDungeonName, tier), 0, 200)
+        if MythicConfig.AllowKeyReattunement == 1 then
+            player:SendBroadcastMessage(string.format("[Mythic+] Your keystone is attuned to: %s (Tier %d).", keyDungeonName, tier))
+            player:GossipMenuAddItem(0, string.format("Keystone attuned to: %s (Tier %d)", keyDungeonName, tier), 0, 999)
+            if mythicDungeonIds[currentMapId] then
+                player:GossipMenuAddItem(0, string.format("Attune Keystone to %s (Tier %d)", currentDungeonName, tier), 0, 200)
+            end
+            player:GossipMenuAddItem(2, GetLocalizedText(player, "UI", "Step away"), 0, 999)
+            player:GossipSendMenu(900001, creature)
+        else
+            player:SendBroadcastMessage(string.format("[Mythic+] Your keystone does not fit this dungeon. It is attuned to: %s (Tier %d).", keyDungeonName, tier))
+            player:GossipClearMenu()
+            player:GossipComplete()
         end
-        player:GossipMenuAddItem(2, GetLocalizedText(player, "UI", "Step away"), 0, 999)
-        player:GossipSendMenu(900001, creature)
         return
     end
 
     player:GossipMenuAddItem(5, GetLocalizedText(player, "UI", "Insert Keystone (Tier %d)"):format(tier), 0, 100, false, "", 0)
-    player:GossipMenuAddItem(0, "Change Keystone Tier", 0, 951, true, "Enter desired Keystone Tier (1 - 100):")
+    if player:IsGM() then
+        player:GossipMenuAddItem(0, "[GM] Change Keystone Tier", 0, 951, true, "Enter desired Keystone Tier (1 - 100):")
+    end
     player:GossipMenuAddItem(2, GetLocalizedText(player, "UI", "Step away"), 0, 999)
     player:GossipSendMenu(900001, creature)
 end
@@ -1987,6 +2082,10 @@ function Pedestal_OnGossipSelect(_, player, creature, _, intid, code)
     end
 
     if intid == 951 then
+        if REQUIRE_KEYSTONE and not player:IsGM() then
+            player:GossipComplete()
+            return
+        end
         if not code or code == "" then
             player:SendBroadcastMessage("[Mythic+] No tier entered.")
             player:GossipComplete()
@@ -2015,6 +2114,11 @@ function Pedestal_OnGossipSelect(_, player, creature, _, intid, code)
     end
 
     if intid == 200 then
+        if REQUIRE_KEYSTONE and MythicConfig.AllowKeyReattunement ~= 1 and not player:IsGM() then
+            player:SendBroadcastMessage("[Mythic+] Keystone re-attunement is disabled on this server.")
+            player:GossipComplete()
+            return
+        end
         local currentMapId = player:GetMapId()
         if not mythicDungeonIds[currentMapId] then
             player:SendBroadcastMessage("[Mythic+] This area is not a registered Mythic+ dungeon.")
@@ -2069,15 +2173,16 @@ function StartBossScanLoop(player, instanceId, mapId, tier)
         return
     end
 
-    MYTHIC_BOSS_KILL_TRACKER[instanceId] = {
-        remaining = {},
-        indexMap = {},
-        tier = tier
-    }
-
     local map = player:GetMap()
     local diff = map and map:GetDifficulty() or 0
     local allActiveBosses = {}
+
+    MYTHIC_BOSS_KILL_TRACKER[instanceId] = {
+        remaining = {},
+        indexMap = {},
+        tier = tier,
+        diff = diff
+    }
 
     for _, entry in ipairs(bosses.bosses) do
         table.insert(allActiveBosses, entry)
@@ -2240,12 +2345,13 @@ function CheckRunCompletion(instanceId, mapId)
             ]], now, duration, runId))
         end
 
+        local diff = (bossTracker and bossTracker.diff) or (runData and runData.diff) or (map and map:GetDifficulty()) or 0
         for _, member in ipairs(members) do
             if member:IsInWorld() and member:GetMapId() == mapId then
                 if wasOvertime then
-                    AwardOvertimeLoot(member, bossTracker.tier)
+                    AwardOvertimeLoot(member, bossTracker.tier, diff)
                 else
-                    AwardMythicPoints(member, bossTracker.tier, duration, deaths, remainingTime)
+                    AwardMythicPoints(member, bossTracker.tier, duration, deaths, remainingTime, diff)
                 end
                 SetEndOfRunUnitFlags(member)
             end
@@ -2325,36 +2431,72 @@ local function MythicPlayerDeath(event, killer, killed)
     end
 end
 
+local function GiveStartingKeystone(player)
+    if not player or not player:IsInWorld() then return false end
+    local guid = player:GetGUIDLow()
+    if PlayerHasAnyKeystone(player) or PlayerKeysCache[guid] then
+        return false
+    end
+
+    local newMapId = GetRandomMythicMapId()
+    local newTier = 1
+    PlayerKeysCache[guid] = { mapId = newMapId, tier = newTier }
+    CharDBQuery(string.format("REPLACE INTO character_mythic_keys (guid, mapId, tier) VALUES (%d, %d, %d)", guid, newMapId, newTier))
+
+    if not player:HasItem(900100) then
+        player:AddItem(900100, 1)
+    end
+
+    local dungeonName = GetLocalizedDungeonName(player, newMapId)
+    player:SendBroadcastMessage(string.format("[Mythic+] %s (%s)", GetLocalizedText(player, "UI", "You received a Mythic Keystone!"), dungeonName))
+
+    CreateLuaEvent(function()
+        local p = GetPlayerByGUID(guid)
+        if p then
+            MythicHandlers.RequestMapNameAndTier(p)
+        end
+    end, 200, 1)
+
+    return true
+end
+
 local function CheckMalGanisEvade(event, creature)
     if creature:GetEntry() ~= 26533 then return end
     local map = creature:GetMap()
     if not map or map:GetMapId() ~= 595 then return end
     local instanceId = map:GetInstanceId()
-    if not IsRunActive(instanceId) then return end
     if creature:IsInEvadeMode() then
         local players = creature:GetPlayersInRange(100)
-        for _, player in ipairs(players) do
-            if player:IsInWorld() and player:GetMapId() == 595 then
-                player:KilledMonsterCredit(26533)
-                local group = player:GetGroup()
-                local members = group and group:GetMembers() or { player }
-                local tracker = MYTHIC_BOSS_KILL_TRACKER[instanceId]
-                if tracker then
-                    for i, bossEntry in ipairs(tracker.remaining) do
-                        if bossEntry == 26533 then
-                            table.remove(tracker.remaining, i)
-                            local bossIndex = tracker.indexMap[26533]
-                            for _, member in ipairs(members) do
-                                if member:IsInWorld() and member:GetMapId() == 595 then
-                                    AIO.Handle(member, "AIO_Mythic", "MarkBossKilled", 595, bossIndex)
+        if IsRunActive(instanceId) then
+            for _, player in ipairs(players) do
+                if player:IsInWorld() and player:GetMapId() == 595 then
+                    player:KilledMonsterCredit(26533)
+                    local group = player:GetGroup()
+                    local members = group and group:GetMembers() or { player }
+                    local tracker = MYTHIC_BOSS_KILL_TRACKER[instanceId]
+                    if tracker then
+                        for i, bossEntry in ipairs(tracker.remaining) do
+                            if bossEntry == 26533 then
+                                table.remove(tracker.remaining, i)
+                                local bossIndex = tracker.indexMap[26533]
+                                for _, member in ipairs(members) do
+                                    if member:IsInWorld() and member:GetMapId() == 595 then
+                                        AIO.Handle(member, "AIO_Mythic", "MarkBossKilled", 595, bossIndex)
+                                    end
                                 end
+                                break
                             end
-                            break
+                        end
+                        if #tracker.remaining == 0 then
+                            CheckRunCompletion(instanceId, 595)
                         end
                     end
-                    if #tracker.remaining == 0 then
-                        CheckRunCompletion(instanceId, mapId)
-                    end
+                end
+            end
+        else
+            for _, player in ipairs(players) do
+                if player:IsInWorld() and player:GetMapId() == 595 then
+                    GiveStartingKeystone(player)
                 end
             end
         end
@@ -2454,10 +2596,19 @@ function isVaultTierEligibleForBracket(bracket, tier)
     return false
 end
 
-local function TryRewardMythicLoot(player, tier, upgradeLevel)
+local function TryRewardMythicLoot(player, tier, upgradeLevel, diff)
+    tier = tier or 1
+    upgradeLevel = upgradeLevel or 0
+    diff = diff or 0
+    local isHeroic = (diff == 1)
     local faction = player:GetTeam() == 67 and "A" or (player:GetTeam() == 469 and "H" or "N")
     local eligible = {}
-    local chanceMultiplier, maxItems = CalculateLootBonus(upgradeLevel)
+    local chanceMultiplier, maxItems = CalculateLootBonus(tier, upgradeLevel)
+    if isHeroic then
+        chanceMultiplier = chanceMultiplier * (MythicConfig.HeroicBonusChance or 1.25)
+        maxItems = maxItems + 1
+        player:SendBroadcastMessage("[Mythic+] (Heroic Bonus) Enhanced loot chances applied!")
+    end
 
     for _, loot in ipairs(MythicLootTable) do
         if loot.type == "pet"   and not MythicRewardConfig.pets      then goto continue end
@@ -2474,47 +2625,100 @@ local function TryRewardMythicLoot(player, tier, upgradeLevel)
         ::continue::
     end
 
-    if #eligible == 0 then return end
-
     local rewardsGiven = 0
     local awardedItems = {}
 
-    for attempt = 1, maxItems do
-        if rewardsGiven >= maxItems then break end
-        
-        local availableItems = {}
-        for _, loot in ipairs(eligible) do
-            if not awardedItems[loot.itemid] then
-                table.insert(availableItems, loot)
+    local function DeliverReward(reward)
+        if reward.type == "gear" or reward.type == "pet" or reward.type == "mount" or reward.type == "item" then
+            player:AddItem(reward.itemid, reward.amount or 1)
+            local itemData = CacheItemTemplate(reward.itemid)
+            local itemName = itemData and itemData.name or reward.itemname or "Item #" .. tostring(reward.itemid)
+            player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "Reward:") .. " " .. itemName)
+        elseif reward.type == "spell" then
+            player:LearnSpell(reward.itemid)
+            player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "Reward: Spell learned!"))
+        end
+
+        if reward.additionalID and reward.additionalType then
+            if reward.additionalType == "item" then
+                player:AddItem(reward.additionalID, 1)
+            elseif reward.additionalType == "spell" then
+                player:LearnSpell(reward.additionalID)
+            elseif reward.additionalType == "skill" then
+                player:AdvanceSkill(reward.additionalID, 1)
             end
         end
-        
-        if #availableItems == 0 then break end
-        
-        local reward = availableItems[math.random(1, #availableItems)]
-        local adjustedChance = reward.chancePercent * chanceMultiplier
-        if math.random() * 100 <= adjustedChance then
-            if reward.type == "gear" or reward.type == "pet" or reward.type == "mount" then
-                player:AddItem(reward.itemid, reward.amount)
-                local itemData = CacheItemTemplate(reward.itemid)
-                local itemName = itemData and itemData.name or "Unknown Item"
-                player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "Reward:") .. " " .. itemName)
-            elseif reward.type == "spell" then
-                player:LearnSpell(reward.itemid)
-                player:SendBroadcastMessage("[Mythic+] " .. GetLocalizedText(player, "UI", "Reward: Spell learned!"))
-            end
-            if reward.additionalID and reward.additionalType then
-                if reward.additionalType == "item" then
-                    player:AddItem(reward.additionalID, 1)
-                elseif reward.additionalType == "spell" then
-                    player:LearnSpell(reward.additionalID)
-                elseif reward.additionalType == "skill" then
-                    player:AdvanceSkill(reward.additionalID, 1)
+
+        awardedItems[reward.itemid] = true
+        rewardsGiven = rewardsGiven + 1
+    end
+
+    -- 1. Attempt bonus rolls on eligible items
+    if #eligible > 0 then
+        for attempt = 1, maxItems do
+            if rewardsGiven >= maxItems then break end
+            
+            local availableItems = {}
+            for _, loot in ipairs(eligible) do
+                if not awardedItems[loot.itemid] then
+                    table.insert(availableItems, loot)
                 end
             end
-            awardedItems[reward.itemid] = true
-            rewardsGiven = rewardsGiven + 1
+            
+            if #availableItems == 0 then break end
+            
+            local reward = availableItems[math.random(1, #availableItems)]
+            local adjustedChance = reward.chancePercent * chanceMultiplier
+            if math.random() * 100 <= adjustedChance then
+                DeliverReward(reward)
+            end
         end
+
+        -- 2. Guaranteed Loot: if RNG didn't give any item, guarantee at least 1 eligible item (casual-friendly)
+        if rewardsGiven == 0 then
+            local availableItems = {}
+            for _, loot in ipairs(eligible) do
+                if not awardedItems[loot.itemid] then
+                    table.insert(availableItems, loot)
+                end
+            end
+            if #availableItems > 0 then
+                local guaranteedReward = availableItems[math.random(1, #availableItems)]
+                DeliverReward(guaranteedReward)
+            end
+        end
+    end
+
+    -- 3. Universal Fallback Currency Guarantee:
+    -- If no eligible items existed or were granted, guarantee currency based on tier progression
+    if rewardsGiven == 0 then
+        local emblemId = 40752 -- Emblem of Heroism default
+        local emblemAmount = 1 + math.min(math.floor(tier / 3), 4)
+
+        if tier >= 10 then
+            emblemId = 49426 -- Emblem of Frost
+        elseif tier >= 5 then
+            emblemId = 47241 -- Emblem of Triumph
+        elseif tier >= 3 then
+            emblemId = 45624 -- Emblem of Conquest
+        end
+
+        if isHeroic then
+            emblemAmount = emblemAmount + (MythicConfig.HeroicExtraEmblem or 1)
+        end
+
+        player:AddItem(emblemId, emblemAmount)
+        local itemData = CacheItemTemplate(emblemId)
+        local emblemName = itemData and itemData.name or "Emblem"
+        player:SendBroadcastMessage(string.format("[Mythic+] %s %dx %s", GetLocalizedText(player, "UI", "Reward:"), emblemAmount, emblemName))
+
+        -- Gold reward scaling with tier
+        local goldAmount = (tier * 100000) -- 10g per tier in copper
+        if isHeroic then
+            goldAmount = math.floor(goldAmount * (MythicConfig.HeroicGoldMultiplier or 1.5))
+        end
+        player:ModifyMoney(goldAmount)
+        rewardsGiven = rewardsGiven + 1
     end
 
     if upgradeLevel >= 2 then
@@ -2523,13 +2727,14 @@ local function TryRewardMythicLoot(player, tier, upgradeLevel)
     end
 end
 
-function AwardMythicPoints(player, tier, duration, deaths, remainingTime)
+function AwardMythicPoints(player, tier, duration, deaths, remainingTime, diff)
     local now = os.time()
     local map = player:GetMap()
     if not map then return end
     local mapId = map:GetMapId()
     local instanceId = map:GetInstanceId()
     local guid = player:GetGUIDLow()
+    diff = diff or 0
 
     local cache = PlayerRatingCache[guid]
     if not cache then
@@ -2547,6 +2752,9 @@ function AwardMythicPoints(player, tier, duration, deaths, remainingTime)
     local gainedRating = CalculateMythicRating(tier, timeRemainingPercent)
     local deathPenalty = deaths * 10
     local finalRating = math.max(0, gainedRating - deathPenalty)
+    if diff == 1 then
+        finalRating = math.floor(finalRating * (MythicConfig.HeroicRatingMultiplier or 1.1))
+    end
     local newRating = math.max(previous, finalRating)
 
     cache[mapId] = newRating
@@ -2576,34 +2784,43 @@ function AwardMythicPoints(player, tier, duration, deaths, remainingTime)
         GetLocalizedText(player, "UI", "Rating: %d (+%d gained, -%d death penalty)"):format(newRating, gainedRating, deathPenalty)
     ))
 
-    if REQUIRE_KEYSTONE and not PlayerHasAnyKeystone(player) then
-        local newTier = math.max(1, tier + upgradeLevel)
+    if REQUIRE_KEYSTONE then
+        local effectiveUpgrade = math.max(1, upgradeLevel)
+        local newTier = tier + effectiveUpgrade
         local newMapId = GetRandomMythicMapId()
         
         PlayerKeysCache[guid] = {mapId = newMapId, tier = newTier}
         CharDBQuery(string.format("REPLACE INTO character_mythic_keys (guid, mapId, tier) VALUES (%d, %d, %d)", guid, newMapId, newTier))
         
-        player:AddItem(900100, 1)
-        player:SendBroadcastMessage(string.format("[Mythic+] %s", GetLocalizedText(player, "UI", "You received a Tier %d Mythic Keystone!"):format(newTier)))
+        if not player:HasItem(900100) then
+            player:AddItem(900100, 1)
+        end
+
+        local newDungeonName = GetLocalizedDungeonName(player, newMapId)
+        player:SendBroadcastMessage(string.format("[Mythic+] %s (%s)", 
+            GetLocalizedText(player, "UI", "You received a Tier %d Mythic Keystone!"):format(newTier),
+            newDungeonName
+        ))
 
         CreateLuaEvent(function()
             local p = GetPlayerByGUID(guid)
             if p then
                 MythicHandlers.RequestMapNameAndTier(p)
             end
-        end, 500, 1)
+        end, 200, 1)
     end
 
-    TryRewardMythicLoot(player, tier, upgradeLevel)
+    TryRewardMythicLoot(player, tier, upgradeLevel, diff)
     UpdateVaultProgress(player, tier, true)
     LeaderboardCache.lastUpdate = 0
 end
 
-function AwardOvertimeLoot(player, tier)
+function AwardOvertimeLoot(player, tier, diff)
     local map = player:GetMap()
     if not map then return end
     local mapId = map:GetMapId()
     local guid = player:GetGUIDLow()
+    diff = diff or 0
     local cache = PlayerRatingCache[guid]
     if cache then
         cache.completed_runs = cache.completed_runs + 1
@@ -2617,7 +2834,7 @@ function AwardOvertimeLoot(player, tier)
         GetLocalizedText(player, "UI", "Tier %d completed in overtime."):format(tier)
     ))
 
-    TryRewardMythicLoot(player, tier, 0)
+    TryRewardMythicLoot(player, tier, 0, diff)
     LeaderboardCache.lastUpdate = 0
 end
 
@@ -2656,20 +2873,33 @@ function MythicHandlers.RequestMapNameAndTier(player)
     end
 end
 
-local function HeroicEndbossKeyReward(event, player, killed)
+local function DungeonEndbossKeyReward(event, player, killed)
     local map = player:GetMap()
     if not map then return end
     local mapId = map:GetMapId()
     if not mythicDungeonIds[mapId] then return end
 
     local instanceId = map:GetInstanceId()
-    if MYTHIC_FLAG_TABLE[instanceId] then return end
+    if MYTHIC_FLAG_TABLE[instanceId] or ActiveRunsCache[instanceId] then return end
 
     local bossData = MythicBosses[mapId]
-    if bossData and killed:GetEntry() == bossData.final then
-        if not PlayerHasAnyKeystone(player) then
-            player:AddItem(900100, 1)
-            player:SendBroadcastMessage(string.format("[Mythic+] %s", GetLocalizedText(player, "UI", "You received a Mythic Keystone!")))
+    if not bossData then return end
+
+    local killedEntry = killed:GetEntry()
+    local isFinal = (killedEntry == bossData.final)
+
+    -- Special multi-phase final encounters
+    if mapId == 543 and (killedEntry == 17307 or killedEntry == 17536) then
+        isFinal = true -- Hellfire Ramparts: Vazruden or Nazan
+    end
+
+    if isFinal then
+        local group = player:GetGroup()
+        local members = group and group:GetMembers() or { player }
+        for _, member in ipairs(members) do
+            if member and member:IsInWorld() and member:GetMapId() == mapId then
+                GiveStartingKeystone(member)
+            end
         end
     end
 end
@@ -2705,6 +2935,10 @@ local function HandleKeystoneChatCommand(event, player, msg, Type, lang)
         local cmd = parts[2] and parts[2]:lower() or ""
 
         if cmd == "here" or cmd == "attune" then
+            if not player:IsGM() and MythicConfig.AllowKeyReattunement ~= 1 then
+                player:SendBroadcastMessage("[Mythic+] Keystone re-attunement is disabled on this server.")
+                return false
+            end
             if not mythicDungeonIds[currentMapId] then
                 player:SendBroadcastMessage("[Mythic+] You are not inside a valid Mythic+ dungeon.")
                 return false
@@ -2717,8 +2951,16 @@ local function HandleKeystoneChatCommand(event, player, msg, Type, lang)
             CharDBQuery(string.format("REPLACE INTO character_mythic_keys (guid, mapId, tier) VALUES (%d, %d, %d)", guid, currentMapId, tier))
             local dungeonName = GetLocalizedDungeonName(player, currentMapId)
             player:SendBroadcastMessage(string.format("[Mythic+] Keystone attuned to: |cffffd100%s (Tier %d)|r!", dungeonName, tier))
+            CreateLuaEvent(function()
+                local p = GetPlayerByGUID(guid)
+                if p then MythicHandlers.RequestMapNameAndTier(p) end
+            end, 100, 1)
             return false
         elseif cmd == "set" then
+            if not player:IsGM() and MythicConfig.NoKeystoneRequired ~= 1 then
+                player:SendBroadcastMessage("[Mythic+] Setting keystone tier manually is restricted to Game Masters.")
+                return false
+            end
             local newTier = tonumber(parts[3]) or 1
             if not mythicDungeonIds[currentMapId] then
                 player:SendBroadcastMessage("[Mythic+] You are not inside a valid Mythic+ dungeon.")
@@ -2731,14 +2973,20 @@ local function HandleKeystoneChatCommand(event, player, msg, Type, lang)
             CharDBQuery(string.format("REPLACE INTO character_mythic_keys (guid, mapId, tier) VALUES (%d, %d, %d)", guid, currentMapId, newTier))
             local dungeonName = GetLocalizedDungeonName(player, currentMapId)
             player:SendBroadcastMessage(string.format("[Mythic+] Keystone set to: |cffffd100%s (Tier %d)|r!", dungeonName, newTier))
+            CreateLuaEvent(function()
+                local p = GetPlayerByGUID(guid)
+                if p then MythicHandlers.RequestMapNameAndTier(p) end
+            end, 100, 1)
             return false
         else
             if keyData and keyData.mapId then
                 local dungeonName = GetLocalizedDungeonName(player, keyData.mapId)
                 player:SendBroadcastMessage(string.format("[Mythic+] Your Keystone is for: |cffffd100%s (Tier %d)|r.", dungeonName, keyData.tier or 1))
-                player:SendBroadcastMessage("[Mythic+] Inside any dungeon, type |cff00ff00#key here|r to attune it to your current location!")
+                if MythicConfig.AllowKeyReattunement == 1 or player:IsGM() then
+                    player:SendBroadcastMessage("[Mythic+] Inside any dungeon, type |cff00ff00#key here|r to attune it to your current location!")
+                end
             else
-                player:SendBroadcastMessage("[Mythic+] You do not have an active Mythic Keystone. Type |cff00ff00#key here|r inside any dungeon to create and attune one!")
+                player:SendBroadcastMessage("[Mythic+] You do not have an active Mythic Keystone. Complete any dungeon to receive one!")
             end
             return false
         end
@@ -2748,7 +2996,7 @@ end
 RegisterCreatureGossipEvent(PEDESTAL_NPC_ENTRY, 1, Pedestal_OnGossipHello)
 RegisterCreatureGossipEvent(PEDESTAL_NPC_ENTRY, 2, Pedestal_OnGossipSelect)
 RegisterPlayerEvent(7, MythicBossKillCheck)
-RegisterPlayerEvent(7, HeroicEndbossKeyReward)
+RegisterPlayerEvent(7, DungeonEndbossKeyReward)
 RegisterPlayerEvent(7, MythicEnemyKillCheck)
 RegisterPlayerEvent(8, MythicPlayerDeath)
 RegisterPlayerEvent(18, HandleKeystoneChatCommand)
