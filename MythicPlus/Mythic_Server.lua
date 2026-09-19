@@ -1972,6 +1972,7 @@ local function StartMythicRun(player, creature, tier)
     MYTHIC_FLAG_TABLE[instanceId] = false
     MYTHIC_AFFIXES_TABLE[instanceId] = affixes
     MYTHIC_REWARD_CHANCE_TABLE[instanceId] = tier <= 2 and 1.5 or tier <= 4 and 2.0 or 5.0
+    InstanceKeyRewardedCache[instanceId] = nil
 
     local cache = PlayerRatingCache[guid]
     local currentRating = cache and cache[mapId] or 0
@@ -2000,9 +2001,53 @@ local function StartMythicRun(player, creature, tier)
         end
     end
 
-    local dungeoncreatures = player:GetCreaturesInRange(2000, nil, 0, 2)
-    for _, c in ipairs(dungeoncreatures) do
-        c:Respawn()
+    -- Full Dungeon Reset: Respawn existing creatures and reset doors
+    local currentCreatures = map:GetCreatures()
+    local spawnedGuids = {}
+    if currentCreatures then
+        for spawnId, c in pairs(currentCreatures) do
+            if c and not c:IsPlayer() then
+                local entry = c:GetEntry()
+                if entry ~= 900001 then -- Do not respawn/reset Font of Power
+                    spawnedGuids[spawnId] = true
+                    c:Respawn()
+                    c:SetCorpseDelay(86400)
+                end
+            end
+        end
+    end
+
+    -- Respawn any despawned / removed creatures directly from DB so bosses & trash are never missing
+    local q = WorldDBQuery(string.format("SELECT guid, id, position_x, position_y, position_z, orientation FROM creature WHERE map = %d", mapId))
+    if q then
+        repeat
+            local dbGuid = q:GetUInt32(0)
+            local entry = q:GetUInt32(1)
+            if entry ~= 900001 and not spawnedGuids[dbGuid] then
+                local x = q:GetFloat(2)
+                local y = q:GetFloat(3)
+                local z = q:GetFloat(4)
+                local o = q:GetFloat(5)
+                local spawned = PerformIngameSpawn(1, entry, mapId, instanceId, x, y, z, o, false, 0, 1)
+                if spawned then
+                    spawned:SetCorpseDelay(86400)
+                end
+            end
+        until not q:NextRow()
+    end
+
+    -- Reset instance doors, gates, and despawn leftover reward chests
+    local gameObjects = player:GetGameObjectsInRange(2000)
+    if gameObjects then
+        for _, go in ipairs(gameObjects) do
+            if go then
+                if go:GetEntry() == 900000 then
+                    go:Despawn()
+                else
+                    go:Respawn()
+                end
+            end
+        end
     end
 
     for _, memberGuid in ipairs(memberGuids) do
@@ -2380,9 +2425,8 @@ local function ProcessBossDeath(creature, killer)
                 [28585] = true, -- 'Slag' in Halls of Lightning // respawn would be too fast
             }
 
-            if not NO_CORPSE_REMOVE_IDS[entry] then
-                creature:RemoveCorpse()
-            end
+            -- Keep corpse intact in C++ memory so it can cleanly respawn on subsequent runs
+            creature:SetCorpseDelay(86400)
 
             for i, bossEntry in ipairs(tracker.remaining) do
                 if bossEntry == entry then
