@@ -47,7 +47,50 @@ local MythicConfig = {
 local REQUIRE_KEYSTONE = true
 local MAX_SELECTABLE_TIER = 100
 
+local function SaveMythicConfig()
+    local writePaths = {
+        "lua_scripts/MythicPlus/Mythic_Config.lua",
+        "MythicPlus/Mythic_Config.lua"
+    }
+    for _, path in ipairs(writePaths) do
+        local f = io.open(path, "w")
+        if f then
+            f:write("-- MythicPlus In-Game Configuration File\n")
+            f:write("-- This file is dynamically read and saved by the in-game Mythic+ Settings tab.\n\n")
+            f:write("MythicConfig = {\n")
+            f:write(string.format("    Enable = %d,\n", MythicConfig.Enable or 1))
+            f:write(string.format("    NoKeystoneRequired = %d,\n", MythicConfig.NoKeystoneRequired or 0))
+            f:write(string.format("    AllowKeyReattunement = %d,\n", MythicConfig.AllowKeyReattunement or 0))
+            f:write(string.format("    HeroicBonusChance = %.2f,\n", MythicConfig.HeroicBonusChance or 1.25))
+            f:write(string.format("    HeroicExtraEmblem = %d,\n", MythicConfig.HeroicExtraEmblem or 1))
+            f:write(string.format("    HeroicGoldMultiplier = %.2f,\n", MythicConfig.HeroicGoldMultiplier or 1.5))
+            f:write(string.format("    HeroicRatingMultiplier = %.2f,\n", MythicConfig.HeroicRatingMultiplier or 1.1))
+            f:write(string.format("    AllowPlayerConfig = %d,\n", MythicConfig.AllowPlayerConfig or 1))
+            f:write("}\n")
+            f:close()
+            print("[Mythic+] Configuration saved to: " .. path)
+            break
+        end
+    end
+end
+
 local function LoadMythicConfig()
+    -- 1. Try loading pure Lua configuration file
+    local luaPaths = {
+        "lua_scripts/MythicPlus/Mythic_Config.lua",
+        "MythicPlus/Mythic_Config.lua",
+        "Mythic_Config.lua"
+    }
+    for _, path in ipairs(luaPaths) do
+        local chunk = loadfile(path)
+        if chunk then
+            chunk()
+            print("[Mythic+] Configuration loaded from Lua file: " .. path)
+            break
+        end
+    end
+
+    -- 2. Fallback to candidate .conf paths if MythicConfig not defined or partially defined
     local candidatePaths = {
         "MythicPlus.conf",
         "conf/MythicPlus.conf",
@@ -56,7 +99,6 @@ local function LoadMythicConfig()
         "../etc/MythicPlus.conf",
         "MythicPlus.conf.dist",
         "conf/MythicPlus.conf.dist",
-        "lua_scripts/MythicPlus/MythicPlus.conf.dist",
         "lua_scripts/MythicPlus/MythicPlus.conf.dist",
     }
     for _, path in ipairs(candidatePaths) do
@@ -68,33 +110,47 @@ local function LoadMythicConfig()
                     local key, val = line:match("^([%w%.%_]+)%s*=%s*(.+)$")
                     if key and val then
                         val = val:match("^%s*(.-)%s*$")
-                        if key == "MythicPlus.Enable" then
+                        if key == "MythicPlus.Enable" and not MythicConfig.Enable then
                             MythicConfig.Enable = tonumber(val) or 1
-                        elseif key == "MythicPlus.NoKeystoneRequired" then
+                        elseif key == "MythicPlus.NoKeystoneRequired" and not MythicConfig.NoKeystoneRequired then
                             MythicConfig.NoKeystoneRequired = tonumber(val) or 0
-                        elseif key == "MythicPlus.AllowKeyReattunement" then
+                        elseif key == "MythicPlus.AllowKeyReattunement" and not MythicConfig.AllowKeyReattunement then
                             MythicConfig.AllowKeyReattunement = tonumber(val) or 0
-                        elseif key == "MythicPlus.HeroicBonusChance" then
+                        elseif key == "MythicPlus.HeroicBonusChance" and not MythicConfig.HeroicBonusChance then
                             MythicConfig.HeroicBonusChance = tonumber(val) or 1.25
-                        elseif key == "MythicPlus.HeroicExtraEmblem" then
+                        elseif key == "MythicPlus.HeroicExtraEmblem" and not MythicConfig.HeroicExtraEmblem then
                             MythicConfig.HeroicExtraEmblem = tonumber(val) or 1
-                        elseif key == "MythicPlus.HeroicGoldMultiplier" then
+                        elseif key == "MythicPlus.HeroicGoldMultiplier" and not MythicConfig.HeroicGoldMultiplier then
                             MythicConfig.HeroicGoldMultiplier = tonumber(val) or 1.5
-                        elseif key == "MythicPlus.HeroicRatingMultiplier" then
+                        elseif key == "MythicPlus.HeroicRatingMultiplier" and not MythicConfig.HeroicRatingMultiplier then
                             MythicConfig.HeroicRatingMultiplier = tonumber(val) or 1.1
                         end
                     end
                 end
             end
             f:close()
-            print("[Mythic+] Configuration loaded from: " .. path)
+            print("[Mythic+] Fallback configuration parsed from: " .. path)
             break
         end
     end
+
+    if not MythicConfig then
+        MythicConfig = {
+            Enable               = 1,
+            NoKeystoneRequired   = 0,
+            AllowKeyReattunement = 0,
+            HeroicBonusChance    = 1.25,
+            HeroicExtraEmblem    = 1,
+            HeroicGoldMultiplier = 1.5,
+            HeroicRatingMultiplier = 1.1,
+            AllowPlayerConfig    = 1,
+        }
+    end
+
     REQUIRE_KEYSTONE = (MythicConfig.NoKeystoneRequired == 0)
     print(string.format("[Mythic+] Keystone requirement: %s (NoKeystoneRequired=%d, AllowKeyReattunement=%d)",
         REQUIRE_KEYSTONE and "ENABLED (Keys required)" or "DISABLED (Cheat mode active)",
-        MythicConfig.NoKeystoneRequired, MythicConfig.AllowKeyReattunement))
+        MythicConfig.NoKeystoneRequired or 0, MythicConfig.AllowKeyReattunement or 0))
 end
 
 LoadMythicConfig()
@@ -3182,3 +3238,44 @@ function MythicHandlers.TeleportToDungeon(player, mapId)
         print("[Mythic+] ERROR in TeleportToDungeon: " .. tostring(err))
     end
 end
+
+function MythicHandlers.RequestConfig(player)
+    AIO.Handle(player, "AIO_Mythic", "ReceiveConfig", MythicConfig)
+end
+
+function MythicHandlers.SaveConfig(player, newConfig)
+    if not newConfig or type(newConfig) ~= "table" then
+        return
+    end
+
+    local isAuthorized = player:IsGM() or (player.GetSecurity and player:GetSecurity() >= 1) or (MythicConfig.AllowPlayerConfig == 1)
+    if not isAuthorized then
+        player:SendBroadcastMessage("|cffff0000[Mythic+] You do not have permission to modify Mythic+ settings.|r")
+        return
+    end
+
+    if newConfig.NoKeystoneRequired ~= nil then
+        MythicConfig.NoKeystoneRequired = tonumber(newConfig.NoKeystoneRequired) or 0
+        REQUIRE_KEYSTONE = (MythicConfig.NoKeystoneRequired ~= 1)
+    end
+    if newConfig.AllowKeyReattunement ~= nil then
+        MythicConfig.AllowKeyReattunement = tonumber(newConfig.AllowKeyReattunement) or 0
+    end
+    if newConfig.HeroicBonusChance ~= nil then
+        MythicConfig.HeroicBonusChance = tonumber(newConfig.HeroicBonusChance) or 1.25
+    end
+    if newConfig.HeroicExtraEmblem ~= nil then
+        MythicConfig.HeroicExtraEmblem = math.floor(tonumber(newConfig.HeroicExtraEmblem) or 1)
+    end
+    if newConfig.HeroicGoldMultiplier ~= nil then
+        MythicConfig.HeroicGoldMultiplier = tonumber(newConfig.HeroicGoldMultiplier) or 1.5
+    end
+    if newConfig.HeroicRatingMultiplier ~= nil then
+        MythicConfig.HeroicRatingMultiplier = tonumber(newConfig.HeroicRatingMultiplier) or 1.1
+    end
+
+    SaveMythicConfig()
+
+    AIO.Handle(player, "AIO_Mythic", "ReceiveConfig", MythicConfig)
+    player:SendBroadcastMessage("|cff00ff00[Mythic+] Settings saved and updated successfully!|r")
+end

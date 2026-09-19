@@ -879,6 +879,17 @@ L.UI = {
         [7] = "Clasificación",
         [8] = "Таблица лидеров",
     },
+    ["Settings"] = {
+        [0] = "Settings",
+        [1] = "설정",
+        [2] = "Paramètres",
+        [3] = "Einstellungen",
+        [4] = "设置",
+        [5] = "設置",
+        [6] = "Ajustes",
+        [7] = "Ajustes",
+        [8] = "Настройки",
+    },
     ["This week's affixes:"] = {
         [0] = "This week's affixes:",
         [1] = "이번 주 어픽스:",

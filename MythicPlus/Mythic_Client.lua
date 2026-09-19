@@ -101,6 +101,8 @@ function UpdateLocalizedElements()
                 elseif i == 2 then
                     tab:SetText(MythicGetText("UI", "Score"))
                 elseif i == 3 then
+                    tab:SetText(MythicGetText("UI", "Settings") or "Settings")
+                elseif i == 4 then
                     tab:SetText(MythicGetText("UI", "Leaderboard"))
                 end
             end
@@ -111,6 +113,9 @@ function UpdateLocalizedElements()
         end
         if MythicPlusFrame.scoreTitle then
             MythicPlusFrame.scoreTitle:SetText(MythicGetText("UI", "Score"))
+        end
+        if MythicPlusFrame.settingsTitle then
+            MythicPlusFrame.settingsTitle:SetText(MythicGetText("UI", "Settings") or "Settings")
         end
         if MythicPlusFrame.leaderboardTitle then
             MythicPlusFrame.leaderboardTitle:SetText(MythicGetText("UI", "Leaderboard"))
@@ -1271,6 +1276,133 @@ UpdateLeaderboardFilters = function()
 end
 
 --------------------------------------------------------------------------------
+-- TAB 3: SETTINGS CONTAINER (Options & Configuration)
+--------------------------------------------------------------------------------
+local settingsContainer = CreateFrame("Frame", nil, frame)
+settingsContainer:SetPoint("TOPLEFT", frame, "TOPLEFT", 140, -15)
+settingsContainer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -20, 15)
+settingsContainer:Hide()
+frame.settingsContainer = settingsContainer
+
+local settingsBanner, settingsTitle = CreateBannerTitle(settingsContainer, MythicGetText("UI", "Settings") or "Settings", -5)
+frame.settingsTitle = settingsTitle
+frame.settingsBanner = settingsBanner
+
+local settingsDesc = settingsContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+settingsDesc:SetPoint("TOP", settingsBanner, "BOTTOM", 0, -4)
+settingsDesc:SetText("|cffddddddConfigure Mythic+ rules, keystone requirements, and reward scaling.|r")
+
+-- Section 1: Rules & Keystones
+local sec1Header = settingsContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+sec1Header:SetPoint("TOPLEFT", settingsContainer, "TOPLEFT", 30, -68)
+sec1Header:SetText("|cffffd100[ Keystone & Progression Rules ]|r")
+
+-- Option 1: Cheat Mode
+local optNoKey = CreateFrame("CheckButton", "MythicPlusSetting_NoKey", settingsContainer, "UICheckButtonTemplate")
+optNoKey:SetPoint("TOPLEFT", sec1Header, "BOTTOMLEFT", 0, -8)
+optNoKey:SetSize(24, 24)
+local optNoKeyText = optNoKey:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+optNoKeyText:SetPoint("LEFT", optNoKey, "RIGHT", 6, 0)
+optNoKeyText:SetText("No Keystone Required (Cheat Mode)")
+local optNoKeyDesc = settingsContainer:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+optNoKeyDesc:SetPoint("TOPLEFT", optNoKey, "BOTTOMLEFT", 28, -2)
+optNoKeyDesc:SetText("Allows opening Font of Power and selecting any tier (1-100) without a keystone.")
+
+-- Option 2: Cross-Dungeon Reattunement
+local optReattune = CreateFrame("CheckButton", "MythicPlusSetting_Reattune", settingsContainer, "UICheckButtonTemplate")
+optReattune:SetPoint("TOPLEFT", optNoKeyDesc, "BOTTOMLEFT", -28, -10)
+optReattune:SetSize(24, 24)
+local optReattuneText = optReattune:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+optReattuneText:SetPoint("LEFT", optReattune, "RIGHT", 6, 0)
+optReattuneText:SetText("Allow Cross-Dungeon Key Reattunement")
+local optReattuneDesc = settingsContainer:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+optReattuneDesc:SetPoint("TOPLEFT", optReattune, "BOTTOMLEFT", 28, -2)
+optReattuneDesc:SetText("Allows players to re-attune their keystone to the current dungeon at the fountain.")
+
+-- Section 2: Heroic Difficulty Bonuses
+local sec2Header = settingsContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+sec2Header:SetPoint("TOPLEFT", optReattuneDesc, "BOTTOMLEFT", -28, -16)
+sec2Header:SetText("|cffffd100[ Heroic Difficulty Reward Multipliers ]|r")
+
+local function CreateSettingInput(parent, labelText, defaultVal, anchorTo, yOffset, tipText)
+    local label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    label:SetPoint("TOPLEFT", anchorTo, "BOTTOMLEFT", 0, yOffset)
+    label:SetText(labelText)
+
+    local box = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
+    box:SetSize(60, 22)
+    box:SetPoint("LEFT", label, "RIGHT", 15, 0)
+    box:SetAutoFocus(false)
+    box:SetText(defaultVal)
+    box:SetFontObject("GameFontHighlightSmall")
+
+    if tipText then
+        local tip = parent:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+        tip:SetPoint("LEFT", box, "RIGHT", 12, 0)
+        tip:SetText(tipText)
+    end
+
+    return box, label
+end
+
+local boxBonusChance, lblBonusChance = CreateSettingInput(settingsContainer, "Loot Bonus Multiplier:", "1.25", sec2Header, -10, "(e.g. 1.25 = +25% drop chance)")
+local boxExtraEmblem, lblExtraEmblem = CreateSettingInput(settingsContainer, "Extra Emblem Reward:", "1", lblBonusChance, -12, "(Extra Emblems of Frost awarded)")
+local boxGoldMult, lblGoldMult       = CreateSettingInput(settingsContainer, "Gold Reward Multiplier:", "1.50", lblExtraEmblem, -12, "(e.g. 1.50 = +50% bonus gold)")
+local boxRatingMult, lblRatingMult   = CreateSettingInput(settingsContainer, "Rating Score Multiplier:", "1.10", lblGoldMult, -12, "(e.g. 1.10 = +10% rating score)")
+
+-- Status Message
+local statusMsg = settingsContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+statusMsg:SetPoint("BOTTOMLEFT", settingsContainer, "BOTTOMLEFT", 30, 20)
+statusMsg:SetText("")
+
+-- Action Buttons
+local saveBtn = CreateFrame("Button", nil, settingsContainer, "UIPanelButtonTemplate")
+saveBtn:SetSize(130, 26)
+saveBtn:SetPoint("BOTTOMLEFT", settingsContainer, "BOTTOMLEFT", 30, 46)
+saveBtn:SetText("Save Settings")
+
+local resetBtn = CreateFrame("Button", nil, settingsContainer, "UIPanelButtonTemplate")
+resetBtn:SetSize(130, 26)
+resetBtn:SetPoint("LEFT", saveBtn, "RIGHT", 15, 0)
+resetBtn:SetText("Reset Defaults")
+
+saveBtn:SetScript("OnClick", function()
+    PlaySound("igMainMenuOptionCheckBoxOn")
+    local newCfg = {
+        NoKeystoneRequired = optNoKey:GetChecked() and 1 or 0,
+        AllowKeyReattunement = optReattune:GetChecked() and 1 or 0,
+        HeroicBonusChance = tonumber(boxBonusChance:GetText()) or 1.25,
+        HeroicExtraEmblem = math.floor(tonumber(boxExtraEmblem:GetText()) or 1),
+        HeroicGoldMultiplier = tonumber(boxGoldMult:GetText()) or 1.5,
+        HeroicRatingMultiplier = tonumber(boxRatingMult:GetText()) or 1.1,
+    }
+    statusMsg:SetText("|cff00ff00Saving settings...|r")
+    AIO.Handle("AIO_Mythic", "SaveConfig", newCfg)
+end)
+
+resetBtn:SetScript("OnClick", function()
+    PlaySound("igMainMenuOptionCheckBoxOn")
+    optNoKey:SetChecked(false)
+    optReattune:SetChecked(false)
+    boxBonusChance:SetText("1.25")
+    boxExtraEmblem:SetText("1")
+    boxGoldMult:SetText("1.50")
+    boxRatingMult:SetText("1.10")
+    statusMsg:SetText("|cffffff00Defaults restored. Click 'Save Settings' to apply.|r")
+end)
+
+function MythicHandlers.ReceiveConfig(_, cfg)
+    if not cfg or type(cfg) ~= "table" then return end
+    optNoKey:SetChecked(cfg.NoKeystoneRequired == 1)
+    optReattune:SetChecked(cfg.AllowKeyReattunement == 1)
+    boxBonusChance:SetText(string.format("%.2f", cfg.HeroicBonusChance or 1.25))
+    boxExtraEmblem:SetText(tostring(cfg.HeroicExtraEmblem or 1))
+    boxGoldMult:SetText(string.format("%.2f", cfg.HeroicGoldMultiplier or 1.5))
+    boxRatingMult:SetText(string.format("%.2f", cfg.HeroicRatingMultiplier or 1.1))
+    statusMsg:SetText("|cff00ff00Settings up to date.|r")
+end
+
+--------------------------------------------------------------------------------
 -- MAIN TABS & ACTIVATION
 --------------------------------------------------------------------------------
 local tabs = {}
@@ -1306,6 +1438,13 @@ local function SetActiveTab(index)
     end
 
     if index == 3 then
+        settingsContainer:Show()
+        AIO.Handle("AIO_Mythic", "RequestConfig")
+    else
+        settingsContainer:Hide()
+    end
+
+    if index == 4 then
         leaderboardContainer:Show()
         UpdatePodiums()
         UpdateLeaderboardList()
@@ -1317,7 +1456,8 @@ end
 
 tabs[1] = CreateStyledTabButton(tabBackground, MythicGetText("UI", "Overview"), 1, SetActiveTab)
 tabs[2] = CreateStyledTabButton(tabBackground, MythicGetText("UI", "Score"), 2, SetActiveTab)
-tabs[3] = CreateStyledTabButton(tabBackground, MythicGetText("UI", "Leaderboard"), 3, SetActiveTab)
+tabs[3] = CreateStyledTabButton(tabBackground, MythicGetText("UI", "Settings") or "Settings", 3, SetActiveTab)
+tabs[4] = CreateStyledTabButton(tabBackground, MythicGetText("UI", "Leaderboard"), 4, SetActiveTab)
 
 frame:SetScript("OnShow", function(self)
     if self.currentTab then
