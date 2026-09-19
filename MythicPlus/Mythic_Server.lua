@@ -1685,8 +1685,11 @@ local function DowngradeKeystoneOnFail(player, tier)
     if not player or not player:IsInWorld() then return end
     local guid = player:GetGUIDLow()
     
+    local map = player:GetMap()
+    local currentMapId = map and map:GetMapId()
+    local keyData = PlayerKeysCache[guid]
+    local newMapId = (keyData and keyData.mapId) or currentMapId or GetRandomMythicMapId()
     local newTier = math.max(1, (tier or 2) - 1)
-    local newMapId = GetRandomMythicMapId()
     PlayerKeysCache[guid] = {mapId = newMapId, tier = newTier}
     CharDBQuery(string.format("REPLACE INTO character_mythic_keys (guid, mapId, tier) VALUES (%d, %d, %d)", guid, newMapId, newTier))
     
@@ -2979,7 +2982,7 @@ function AwardMythicPoints(player, tier, duration, deaths, remainingTime, diff)
     if REQUIRE_KEYSTONE then
         local effectiveUpgrade = math.max(1, upgradeLevel)
         local newTier = tier + effectiveUpgrade
-        local newMapId = GetRandomMythicMapId()
+        local newMapId = mapId
         
         PlayerKeysCache[guid] = {mapId = newMapId, tier = newTier}
         CharDBQuery(string.format("REPLACE INTO character_mythic_keys (guid, mapId, tier) VALUES (%d, %d, %d)", guid, newMapId, newTier))
